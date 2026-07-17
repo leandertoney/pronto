@@ -1,3 +1,4 @@
+import {isHallucinatedTranscript} from '../lib/whisperHallucination';
 import {openAiKey} from './env';
 
 /**
@@ -5,6 +6,12 @@ import {openAiKey} from './env';
  * speech recognition, so we upload the recorded audio file per attempt.
  * `language` is locked per step: 'en' for the user's English input,
  * 'es' for their Spanish repeat attempts.
+ *
+ * Whisper hallucinates caption boilerplate ("thanks for watching",
+ * "gracias por ver", …) when handed silence. Two defenses:
+ *  1. `temperature: 0` makes decoding deterministic and less prone to it.
+ *  2. If the transcript is *only* a known hallucination, we return '' so the
+ *     conversation treats it as "nothing was said" instead of coaching it.
  */
 
 const WHISPER_URL = 'https://api.openai.com/v1/audio/transcriptions';
@@ -23,6 +30,7 @@ export async function transcribe(
   form.append('model', 'whisper-1');
   form.append('language', language);
   form.append('response_format', 'json');
+  form.append('temperature', '0');
 
   const res = await fetch(WHISPER_URL, {
     method: 'POST',
@@ -36,5 +44,6 @@ export async function transcribe(
   }
 
   const data = (await res.json()) as {text?: string};
-  return (data.text ?? '').trim();
+  const text = (data.text ?? '').trim();
+  return isHallucinatedTranscript(text) ? '' : text;
 }

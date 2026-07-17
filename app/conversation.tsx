@@ -39,7 +39,8 @@ const SILENCE_DB = -40; // below this = silence
 const SILENCE_HOLD_MS = 1300; // quiet this long after speech -> send
 const NO_SPEECH_TIMEOUT_MS = 8000; // no speech at all -> restart listening
 const MAX_UTTERANCE_MS = 25000; // hard cap per utterance
-const MIN_UTTERANCE_MS = 500; // shorter than this -> discard
+const MIN_UTTERANCE_MS = 700; // shorter than this -> discard (avoids blips)
+const LISTEN_START_DELAY_MS = 550; // let the app's own voice fully stop first
 
 export default function Conversation() {
   const router = useRouter();
@@ -117,11 +118,15 @@ export default function Conversation() {
       try {
         const wasRepeat = currentTarget !== null;
         const duration = Date.now() - listenStartRef.current;
+        const heardSpeech = speechDetectedRef.current;
         await recorder.stop();
         await exitRecordingMode();
         const uri = recorder.uri;
+        // Only transcribe if we actually heard sustained speech. This keeps
+        // silent/near-silent clips out of Whisper, which otherwise
+        // hallucinates "thanks for watching" style caption boilerplate.
         const worthProcessing =
-          process && uri !== null && duration >= MIN_UTTERANCE_MS;
+          process && uri !== null && heardSpeech && duration >= MIN_UTTERANCE_MS;
         if (worthProcessing) {
           if (wasRepeat) {
             await handleRepeatRecording(uri);
@@ -151,7 +156,7 @@ export default function Conversation() {
       micPermission === 'granted' &&
       (phase === 'awaiting-english' || phase === 'awaiting-repeat')
     ) {
-      const t = setTimeout(() => startListening(), 250);
+      const t = setTimeout(() => startListening(), LISTEN_START_DELAY_MS);
       return () => clearTimeout(t);
     }
     return undefined;

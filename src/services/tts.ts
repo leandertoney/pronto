@@ -1,23 +1,23 @@
 import {createAudioPlayer} from 'expo-audio';
 import * as Speech from 'expo-speech';
 
-import {getSpanishAudioUri} from './openaiTts';
+import {getAudioUri, TtsLang} from './openaiTts';
 
 /**
  * Text-to-speech.
  *
- * Spanish phrases use OpenAI's natural "nova" voice (a real human-sounding
- * Latina voice), cached on-device so replays and slow-mode cost nothing —
- * see openaiTts.ts. If the network/API call fails, we fall back to the free
- * device Spanish voice so the loop never dead-ends.
+ * BOTH Spanish phrases and English coaching lines use OpenAI's natural "nova"
+ * voice, so the app has one consistent human-sounding voice throughout.
+ * Audio is cached on-device (see openaiTts.ts), so replays and slow-mode cost
+ * nothing — only brand-new lines call the API.
  *
- * English coaching lines stay on the free device voice: they vary constantly
- * and aren't worth an API call or cache.
+ * If the network/API call fails, we fall back to the free device voice (in the
+ * right language) so the loop never dead-ends, even offline.
  */
 
 const SPANISH_SLOW_RATE = 0.6;
-const ENGLISH_RATE = 1.0;
 const DEVICE_SPANISH_RATE = 0.85;
+const DEVICE_ENGLISH_RATE = 1.0;
 
 let cachedDeviceVoice: string | null | undefined;
 
@@ -77,28 +77,40 @@ function playFile(uri: string, rate: number): Promise<void> {
   });
 }
 
-async function speakDeviceSpanish(text: string, slow: boolean): Promise<void> {
-  const voice = await resolveSpanishVoice();
-  await speakDevice(text, {
-    language: voice ? undefined : 'es-MX',
-    voice: voice ?? undefined,
-    rate: slow ? SPANISH_SLOW_RATE : DEVICE_SPANISH_RATE,
-  });
-}
-
-export async function speakSpanish(text: string, slow = false): Promise<void> {
-  try {
-    const uri = await getSpanishAudioUri(text);
-    await playFile(uri, slow ? SPANISH_SLOW_RATE : 1.0);
-  } catch {
-    // Network/API/playback failure — fall back to the free device voice so a
-    // phrase is always spoken.
-    await speakDeviceSpanish(text, slow);
+async function speakDeviceLang(
+  text: string,
+  lang: TtsLang,
+  slow: boolean,
+): Promise<void> {
+  if (lang === 'es') {
+    const voice = await resolveSpanishVoice();
+    await speakDevice(text, {
+      language: voice ? undefined : 'es-MX',
+      voice: voice ?? undefined,
+      rate: slow ? SPANISH_SLOW_RATE : DEVICE_SPANISH_RATE,
+    });
+  } else {
+    await speakDevice(text, {language: 'en-US', rate: DEVICE_ENGLISH_RATE});
   }
 }
 
+/** Speak a line in the given language via the natural nova voice (cached). */
+async function speakNova(text: string, lang: TtsLang, slow: boolean): Promise<void> {
+  try {
+    const uri = await getAudioUri(text, lang);
+    await playFile(uri, slow ? SPANISH_SLOW_RATE : 1.0);
+  } catch {
+    // Network/API/playback failure — fall back to the free device voice.
+    await speakDeviceLang(text, lang, slow);
+  }
+}
+
+export async function speakSpanish(text: string, slow = false): Promise<void> {
+  await speakNova(text, 'es', slow);
+}
+
 export async function speakEnglish(text: string): Promise<void> {
-  await speakDevice(text, {language: 'en-US', rate: ENGLISH_RATE});
+  await speakNova(text, 'en', false);
 }
 
 export function stopSpeaking(): void {

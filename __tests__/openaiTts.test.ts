@@ -19,14 +19,20 @@ describe('cacheFileName', () => {
     );
   });
 
-  it('encodes the voice in the filename and ends in .mp3', () => {
-    const name = cacheFileName('hola', 'nova');
-    expect(name.startsWith('nova-')).toBe(true);
+  it('encodes the voice and language in the filename and ends in .mp3', () => {
+    const name = cacheFileName('hola', 'es', 'nova');
+    expect(name.startsWith('nova-es-')).toBe(true);
     expect(name.endsWith('.mp3')).toBe(true);
   });
 
   it('varies by voice', () => {
-    expect(cacheFileName('hola', 'nova')).not.toBe(cacheFileName('hola', 'shimmer'));
+    expect(cacheFileName('hola', 'es', 'nova')).not.toBe(
+      cacheFileName('hola', 'es', 'shimmer'),
+    );
+  });
+
+  it('varies by language (same text spoken es vs en caches separately)', () => {
+    expect(cacheFileName('no', 'es')).not.toBe(cacheFileName('no', 'en'));
   });
 
   it('produces a filesystem-safe name (no spaces or slashes)', () => {
