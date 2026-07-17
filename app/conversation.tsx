@@ -1,5 +1,5 @@
 import {useRouter} from 'expo-router';
-import {useEffect, useRef, useState} from 'react';
+import {useCallback, useEffect, useRef, useState} from 'react';
 import {
   Animated,
   FlatList,
@@ -9,7 +9,11 @@ import {
   View,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import {RecordingPresets, useAudioRecorder} from 'expo-audio';
+import {
+  RecordingPresets,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from 'expo-audio';
 
 import {
   enterRecordingMode,
@@ -23,12 +27,31 @@ import {
   useConversation,
 } from '../src/store/useConversation';
 
+/**
+ * Hands-free conversational flow: after the app finishes speaking it starts
+ * listening automatically. Simple metering-based voice activity detection —
+ * once you've spoken and then stay quiet for SILENCE_HOLD_MS, the recording
+ * is sent. The mic button is a "send now" override; auto-listen can be
+ * toggled off for tap-to-talk.
+ */
+const SPEECH_DB = -35; // above this = speech
+const SILENCE_DB = -40; // below this = silence
+const SILENCE_HOLD_MS = 1300; // quiet this long after speech -> send
+const NO_SPEECH_TIMEOUT_MS = 8000; // no speech at all -> restart listening
+const MAX_UTTERANCE_MS = 25000; // hard cap per utterance
+const MIN_UTTERANCE_MS = 500; // shorter than this -> discard
+
 export default function Conversation() {
   const router = useRouter();
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorder = useAudioRecorder({
+    ...RecordingPresets.HIGH_QUALITY,
+    isMeteringEnabled: true,
+  });
+  const recorderState = useAudioRecorderState(recorder, 120);
   const [micPermission, setMicPermission] = useState<
     'unknown' | 'granted' | 'denied'
   >('unknown');
+  const [autoListen, setAutoListen] = useState(true);
 
   const phase = useConversation((s) => s.phase);
   const transcript = useConversation((s) => s.transcript);
@@ -36,12 +59,17 @@ export default function Conversation() {
   const error = useConversation((s) => s.error);
   const startSession = useConversation((s) => s.startSession);
   const setRecording = useConversation((s) => s.setRecording);
+  const cancelRecording = useConversation((s) => s.cancelRecording);
   const handleEnglishRecording = useConversation((s) => s.handleEnglishRecording);
   const handleRepeatRecording = useConversation((s) => s.handleRepeatRecording);
   const replayTarget = useConversation((s) => s.replayTarget);
   const reset = useConversation((s) => s.reset);
 
   const listRef = useRef<FlatList<TranscriptEntry>>(null);
+  const busyRef = useRef(false); // guards start/stop races
+  const listenStartRef = useRef(0);
+  const speechDetectedRef = useRef(false);
+  const silenceSinceRef = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -66,26 +94,106 @@ export default function Conversation() {
     }
   }, [transcript.length]);
 
+  const startListening = useCallback(async () => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    try {
+      await enterRecordingMode();
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      listenStartRef.current = Date.now();
+      speechDetectedRef.current = false;
+      silenceSinceRef.current = null;
+      setRecording();
+    } finally {
+      busyRef.current = false;
+    }
+  }, [recorder, setRecording]);
+
+  const finishListening = useCallback(
+    async (process: boolean) => {
+      if (busyRef.current) return;
+      busyRef.current = true;
+      try {
+        const wasRepeat = currentTarget !== null;
+        const duration = Date.now() - listenStartRef.current;
+        await recorder.stop();
+        await exitRecordingMode();
+        const uri = recorder.uri;
+        const worthProcessing =
+          process && uri !== null && duration >= MIN_UTTERANCE_MS;
+        if (worthProcessing) {
+          if (wasRepeat) {
+            await handleRepeatRecording(uri);
+          } else {
+            await handleEnglishRecording(uri);
+          }
+        } else {
+          cancelRecording();
+        }
+      } finally {
+        busyRef.current = false;
+      }
+    },
+    [
+      recorder,
+      currentTarget,
+      handleEnglishRecording,
+      handleRepeatRecording,
+      cancelRecording,
+    ],
+  );
+
+  // Auto-start listening whenever it's the user's turn (hands-free mode).
+  useEffect(() => {
+    if (
+      autoListen &&
+      micPermission === 'granted' &&
+      (phase === 'awaiting-english' || phase === 'awaiting-repeat')
+    ) {
+      const t = setTimeout(() => startListening(), 250);
+      return () => clearTimeout(t);
+    }
+    return undefined;
+  }, [phase, autoListen, micPermission, startListening]);
+
+  // Voice activity detection: watch metering while recording.
+  useEffect(() => {
+    if (phase !== 'recording' || !recorderState.isRecording) return;
+    const now = Date.now();
+    const elapsed = now - listenStartRef.current;
+    const level = recorderState.metering;
+
+    if (typeof level === 'number') {
+      if (level > SPEECH_DB) {
+        speechDetectedRef.current = true;
+        silenceSinceRef.current = null;
+      } else if (speechDetectedRef.current && level < SILENCE_DB) {
+        if (silenceSinceRef.current === null) {
+          silenceSinceRef.current = now;
+        } else if (now - silenceSinceRef.current >= SILENCE_HOLD_MS) {
+          finishListening(true);
+          return;
+        }
+      }
+    }
+
+    if (!speechDetectedRef.current && elapsed >= NO_SPEECH_TIMEOUT_MS) {
+      // Heard nothing — recycle the listener so we don't record forever.
+      finishListening(false);
+    } else if (elapsed >= MAX_UTTERANCE_MS) {
+      finishListening(speechDetectedRef.current);
+    }
+  }, [phase, recorderState, finishListening]);
+
   const canUseMic = phase === 'awaiting-english' || phase === 'awaiting-repeat';
   const isRecording = phase === 'recording';
 
   const onMicPress = async () => {
     if (isRecording) {
-      const wasRepeat = currentTarget !== null;
-      await recorder.stop();
-      await exitRecordingMode();
-      const uri = recorder.uri;
-      if (!uri) return;
-      if (wasRepeat) {
-        await handleRepeatRecording(uri);
-      } else {
-        await handleEnglishRecording(uri);
-      }
+      await finishListening(true);
     } else if (canUseMic) {
-      await enterRecordingMode();
-      await recorder.prepareToRecordAsync();
-      recorder.record();
-      setRecording();
+      await startListening();
     }
   };
 
@@ -114,7 +222,11 @@ export default function Conversation() {
           <Text style={styles.headerBack}>‹</Text>
         </Pressable>
         <Text style={styles.headerTitle}>qué onda</Text>
-        <View style={{width: 20}} />
+        <Pressable onPress={() => setAutoListen((v) => !v)} hitSlop={8}>
+          <Text style={[styles.autoToggle, !autoListen && styles.autoToggleOff]}>
+            {autoListen ? 'auto 🎙️' : 'tap 🎙️'}
+          </Text>
+        </Pressable>
       </View>
 
       <FlatList
@@ -131,6 +243,7 @@ export default function Conversation() {
 
       <MicButton
         phase={phase}
+        autoListen={autoListen}
         disabled={!canUseMic && !isRecording}
         onPress={onMicPress}
       />
@@ -194,22 +307,24 @@ function ScoreRow({score, text}: {score: number; text: string}) {
 
 const MIC_LABELS: Record<Phase, string> = {
   idle: 'Warming up…',
-  greeting: 'Listening for you soon…',
-  'awaiting-english': 'Tap and tell me what you’re doing',
-  recording: 'Listening… tap when done',
+  greeting: 'Say hi in a second…',
+  'awaiting-english': 'Tell me what you’re doing',
+  recording: 'Listening… pause when you’re done',
   transcribing: 'Got it — writing that down…',
   thinking: 'Thinking…',
   speaking: 'Speaking…',
-  'awaiting-repeat': 'Tap and repeat the Spanish',
+  'awaiting-repeat': 'Your turn — say it in Spanish',
   scoring: 'Scoring your attempt…',
 };
 
 function MicButton({
   phase,
+  autoListen,
   disabled,
   onPress,
 }: {
   phase: Phase;
+  autoListen: boolean;
   disabled: boolean;
   onPress: () => void;
 }) {
@@ -233,9 +348,15 @@ function MicButton({
     return undefined;
   }, [isRecording, pulse]);
 
+  const label = isRecording
+    ? autoListen
+      ? 'Listening… pause when done (or tap to send)'
+      : 'Listening… tap to send'
+    : MIC_LABELS[phase];
+
   return (
     <View style={styles.micArea}>
-      <Text style={styles.micLabel}>{MIC_LABELS[phase]}</Text>
+      <Text style={styles.micLabel}>{label}</Text>
       <Animated.View style={{transform: [{scale: pulse}]}}>
         <Pressable
           onPress={onPress}
@@ -247,7 +368,7 @@ function MicButton({
             disabled && !isBusy && styles.micButtonDisabled,
           ]}
         >
-          <Text style={styles.micIcon}>{isRecording ? '■' : '🎙️'}</Text>
+          <Text style={styles.micIcon}>{isRecording ? '➤' : '🎙️'}</Text>
         </Pressable>
       </Animated.View>
     </View>
@@ -276,6 +397,13 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     letterSpacing: 3,
     textTransform: 'uppercase',
+  },
+  autoToggle: {
+    ...fonts.caption,
+    color: colors.turquoise,
+  },
+  autoToggleOff: {
+    color: colors.textSecondary,
   },
   listContent: {
     paddingHorizontal: 20,
@@ -379,7 +507,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   micButtonRecording: {
-    backgroundColor: colors.danger,
+    backgroundColor: colors.turquoise,
   },
   micButtonBusy: {
     backgroundColor: colors.surfaceRaised,
