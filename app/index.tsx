@@ -16,7 +16,9 @@ export default function Home() {
           <View style={[styles.wave, styles.waveTwo]} />
           <View style={[styles.wave, styles.waveThree]} />
         </View>
-        <Text style={styles.title}>¿qué onda?</Text>
+        <Text style={styles.title}>
+          ¿qué <Text style={styles.titleAccent}>onda</Text>?
+        </Text>
         <Text style={styles.subtitle}>
           Learn the Spanish for what you're doing right now.
         </Text>
@@ -49,17 +51,19 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   wave: {
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.accent,
+    height: 8,
+    borderRadius: 4,
   },
-  waveOne: {width: 56, opacity: 1},
-  waveTwo: {width: 34, opacity: 0.55},
-  waveThree: {width: 18, opacity: 0.25},
+  waveOne: {width: 56, backgroundColor: colors.accent},
+  waveTwo: {width: 34, backgroundColor: colors.sunshine},
+  waveThree: {width: 18, backgroundColor: colors.turquoise},
   title: {
     ...fonts.display,
     fontSize: 44,
     color: colors.textPrimary,
+  },
+  titleAccent: {
+    color: colors.accent,
   },
   subtitle: {
     ...fonts.body,

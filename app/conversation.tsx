@@ -309,7 +309,7 @@ const styles = StyleSheet.create({
   },
   spanishText: {
     ...fonts.title,
-    color: colors.accent,
+    color: colors.spanishText,
   },
   meaningText: {
     ...fonts.caption,

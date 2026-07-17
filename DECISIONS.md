@@ -12,9 +12,9 @@ Judgment calls made while building the MVP in one shot, per the brief's "ask zer
 
 ## Design
 
-- **Accent color: electric teal (`#2DE1C2`)** on near-black `#0A0E12`. The brief said pick one of teal/coral — teal reads more "cinematic dark" and pairs with the wave motif.
-- **Wave motif** is three tapering teal bars on the Home screen (subtle, no cartoon imagery) plus the lowercase "¿qué onda?" wordmark.
-- **Score ring** is a color-coded circular badge with the numeric score (teal ≥80, amber 50–79, red <50). A true animated progress ring would need `react-native-svg`; the simple ring satisfies "simple ring/percentage" without another dependency.
+- **Guatapé palette (revised 2026-07-17, by request).** The original build followed the brief's "dark, cinematic" direction; Leander asked for something that feels fun and colorful like Hispanic culture — he's headed to Medellín, with Guatapé nearby. The redesign takes the zócalo houses of Guatapé as the reference: warm whitewashed-cream background (`#FFF7EC`) with three saturated trim colors — zócalo coral (`#F25C3A`, CTA + mic), sunshine yellow (`#FFB627`), and turquoise (`#12A5A0`). Tasteful means the cream canvas does most of the work and the color stays in the trim: bubbles are soft tints (turquoise for Spanish, sunshine for the user), text is deep coffee brown, and only the mic/CTA is fully saturated.
+- **Wave motif** is now a three-color zócalo stripe (coral, sunshine, turquoise bars) on the Home screen, with "onda" picked out in coral in the wordmark.
+- **Score ring** is a color-coded circular badge with the numeric score (green ≥80, amber 50–79, red <50). A true animated progress ring would need `react-native-svg`; the simple ring satisfies "simple ring/percentage" without another dependency.
 
 ## Loop mechanics
 

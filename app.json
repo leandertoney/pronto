@@ -6,8 +6,8 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "queonda",
-    "userInterfaceStyle": "dark",
-    "backgroundColor": "#0A0E12",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#FFF7EC",
     "ios": {
       "supportsTablet": false,
       "infoPlist": {
@@ -16,13 +16,15 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#0A0E12",
+        "backgroundColor": "#FFF7EC",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "permissions": ["android.permission.RECORD_AUDIO"]
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
