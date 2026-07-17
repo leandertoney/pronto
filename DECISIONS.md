@@ -26,7 +26,10 @@ Judgment calls made while building the MVP in one shot, per the brief's "ask zer
 
 ## Voice
 
-- **Spanish TTS voice resolution**: `Speech.getAvailableVoicesAsync()` is queried once and cached — prefer `es-MX`, then `es-ES`, then any `es-*`. If voice enumeration fails, we fall back to passing `language: "es-MX"` so iOS still picks a Spanish voice. English coaching lines always use `en-US`. Spanish rate 0.85, slow-replay rate 0.6.
+- **Natural Spanish voice via OpenAI TTS (revised 2026-07-17, by request).** The original build used `expo-speech` for everything, but the device's default Spanish voice sounds robotic — not the native Latina voice Leander wanted. Spanish phrases now go through OpenAI's `gpt-4o-mini-tts` with the `nova` voice (warm younger woman), steered toward Latin American / Colombian Spanish via the `instructions` field. ElevenLabs was considered and rejected — its free tier is a tiny one-time trial and bans commercial use, so it's not viable without paying.
+- **On-device audio cache** (`src/services/openaiTts.ts`): TTS is deterministic, so each phrase's MP3 is saved to `Paths.cache/tts-cache/` under a stable DJB2-hash filename keyed by normalized text + voice. Replays hit the cached file for free; only brand-new phrases call the API. At ~$0.0006/phrase this keeps a whole trip's practice to a few cents. The 0.6× **slow replay reuses the same cached file** via `setPlaybackRate` — no second API call.
+- **Graceful fallback**: if the TTS API or playback fails, `speakSpanish` falls back to the free device Spanish voice (still resolved es-MX → es-ES → es-*), so a phrase is always spoken even offline.
+- **English coaching lines stay on the free device voice** (`en-US`, rate 1.0) — they vary constantly and aren't worth an API call or cache. Device Spanish fallback rate 0.85, slow 0.6.
 - **Audio session juggling**: `allowsRecording` is enabled only while actually recording and disabled right after stopping, so TTS playback comes out of the main speaker at full volume (iOS routes audio to the quiet earpiece when a recording session is active).
 
 ## Testing
