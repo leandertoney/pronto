@@ -459,10 +459,15 @@ function ScoreRow({entry}: {entry: TranscriptEntry}) {
         <View style={[styles.scoreRing, {borderColor: color}]}>
           <Text style={[styles.scoreNumber, {color}]}>{score}</Text>
         </View>
-        <Text style={[styles.scoreText, perfect && styles.scoreTextPerfect]}>
-          {perfect ? '🎉 ' : ''}
-          {entry.text}
-        </Text>
+        <View style={styles.scoreTextBlock}>
+          <Text style={[styles.scoreText, perfect && styles.scoreTextPerfect]}>
+            {perfect ? '🎉 ' : ''}
+            {entry.text}
+          </Text>
+          {entry.spanishTranslation ? (
+            <Text style={styles.scoreTranslation}>{entry.spanishTranslation}</Text>
+          ) : null}
+        </View>
       </View>
       {showWhy && (
         <View style={styles.whyBox}>
@@ -770,10 +775,18 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
   },
+  scoreTextBlock: {
+    flex: 1,
+  },
   scoreText: {
     ...fonts.caption,
     color: colors.textSecondary,
-    flex: 1,
+  },
+  scoreTranslation: {
+    ...fonts.caption,
+    color: colors.turquoise,
+    marginTop: 2,
+    fontStyle: 'italic',
   },
   errorText: {
     ...fonts.caption,

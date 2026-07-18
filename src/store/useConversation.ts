@@ -76,18 +76,33 @@ const NEXT_COMMANDS_TEACH_EN =
   'Quick tip: from here you can just talk to me. Say "continúa" to build on this, or "progreso" to see how you\'re doing.';
 const NEXT_COMMANDS_TEACH_ES = 'Continúa. Progreso.';
 
-/** Varied celebration lines so a perfect score never sounds canned. */
-const PERFECT_LINES = [
-  '¡Perfecto! You nailed it.',
-  '¡Eso es! That was spot on.',
-  '¡Qué bien! You sound like a local.',
-  '¡Increíble! First-try energy.',
-  '¡Así se hace! Beautiful.',
+interface Bilingual {
+  en: string;
+  es: string;
+}
+
+/**
+ * Varied celebration lines so a perfect score never sounds canned. Each pair
+ * is a FAITHFUL translation of the other (not just two independently upbeat
+ * phrases) — this is the line the user reads to correlate Spanish/English,
+ * so a mismatch here would silently teach the wrong meaning.
+ */
+const PERFECT_LINES: Bilingual[] = [
+  {es: '¡Perfecto!', en: 'Perfect!'},
+  {es: '¡Eso es!', en: "That's it!"},
+  {es: '¡Qué bien!', en: 'Nicely done!'},
+  {es: '¡Increíble!', en: 'Incredible!'},
+  {es: '¡Así se hace!', en: "That's how it's done!"},
 ];
 
-function pickPerfectLine(): string {
+function pickPerfectLine(): Bilingual {
   return PERFECT_LINES[Math.floor(Math.random() * PERFECT_LINES.length)];
 }
+
+const MOVING_ON_LINE: Bilingual = {
+  en: "Great effort — you'll get more reps at this. Let's keep going!",
+  es: '¡Buen esfuerzo! Vas a practicar esto más. ¡Sigamos!',
+};
 
 /** Feed a fresh phrase's per-word glosses into the personal dictionary. Best-effort — a storage hiccup shouldn't break the conversation. */
 async function recordReplyWords(reply: TutorReply): Promise<void> {
@@ -260,12 +275,8 @@ export const useConversation = create<ConversationState>((set, get) => ({
       const tier = tierForScore(score);
       const retries = get().retries;
       const movingOn = tier === 'perfect' || retries >= 2;
-      const feedback =
-        tier === 'perfect'
-          ? pickPerfectLine()
-          : movingOn
-            ? "Great effort — you'll get more reps at this. Let's keep going!"
-            : feedbackFor(tier);
+      const feedback: Bilingual =
+        tier === 'perfect' ? pickPerfectLine() : movingOn ? MOVING_ON_LINE : feedbackFor(tier);
       const words = attempt ? diffWords(target.spanish, attempt) : undefined;
 
       set((s) => ({
@@ -274,7 +285,8 @@ export const useConversation = create<ConversationState>((set, get) => ({
           {
             id: nextId(),
             kind: 'score',
-            text: feedback,
+            text: feedback.en,
+            spanishTranslation: feedback.es,
             score,
             heard: attempt || undefined,
             targetWords: words,
@@ -293,7 +305,8 @@ export const useConversation = create<ConversationState>((set, get) => ({
         });
         set((s) => ({learnedCount: s.learnedCount + 1}));
 
-        await speakEnglish(feedback);
+        await speakEnglish(feedback.en);
+        await speakSpanish(feedback.es);
 
         if (!get().hasTaughtNextCommands) {
           set({hasTaughtNextCommands: true});
@@ -304,12 +317,12 @@ export const useConversation = create<ConversationState>((set, get) => ({
         set({phase: 'choosing'});
       } else if (tier === 'close') {
         set({retries: retries + 1, phase: 'speaking'});
-        await speakEnglish(feedback);
+        await speakEnglish(feedback.en);
         await speakSpanish(target.spanish);
         set({phase: 'awaiting-repeat'});
       } else {
         set({retries: retries + 1, phase: 'speaking'});
-        await speakEnglish(feedback);
+        await speakEnglish(feedback.en);
         await speakSpanish(target.spanish, true);
         set({phase: 'awaiting-repeat'});
       }
@@ -421,11 +434,17 @@ export const useConversation = create<ConversationState>((set, get) => ({
     }),
 }));
 
-function feedbackFor(tier: 'close' | 'retry'): string {
+function feedbackFor(tier: 'close' | 'retry'): Bilingual {
   switch (tier) {
     case 'close':
-      return 'Close! Listen again and give it one more try.';
+      return {
+        en: 'Close! Listen again and give it one more try.',
+        es: '¡Casi! Escucha otra vez e inténtalo una vez más.',
+      };
     case 'retry':
-      return "Let's hear it slowly one more time — then you try.";
+      return {
+        en: "Let's hear it slowly one more time — then you try.",
+        es: 'Vamos a escucharlo despacio una vez más — luego tú lo intentas.',
+      };
   }
 }
