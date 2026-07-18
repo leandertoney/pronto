@@ -47,6 +47,14 @@ export async function savePhrase(phrase: LearnedPhrase): Promise<LearnedPhrase[]
   return next;
 }
 
+/** Remove a single phrase by its Spanish text. */
+export async function removePhrase(spanish: string): Promise<LearnedPhrase[]> {
+  const existing = await loadPhrases();
+  const next = existing.filter((p) => p.spanish !== spanish);
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  return next;
+}
+
 export async function clearPhrases(): Promise<void> {
   await AsyncStorage.removeItem(STORAGE_KEY);
 }

@@ -1,12 +1,21 @@
-import {useRouter} from 'expo-router';
+import {useFocusEffect, useRouter} from 'expo-router';
+import {useCallback, useState} from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 
+import {loadPhrases} from '../src/lib/phraseStore';
 import {colors, fonts} from '../src/theme';
 
-/** Home: app name + wave motif, one button. That's it. */
+/** Home: app name + wave motif, start button, and a door to saved phrases. */
 export default function Home() {
   const router = useRouter();
+  const [phraseCount, setPhraseCount] = useState(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadPhrases().then((p) => setPhraseCount(p.length));
+    }, []),
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -24,12 +33,24 @@ export default function Home() {
         </Text>
       </View>
 
-      <Pressable
-        style={({pressed}) => [styles.cta, pressed && styles.ctaPressed]}
-        onPress={() => router.push('/conversation')}
-      >
-        <Text style={styles.ctaText}>Start Talking</Text>
-      </Pressable>
+      <View style={styles.buttons}>
+        <Pressable
+          style={({pressed}) => [styles.cta, pressed && styles.ctaPressed]}
+          onPress={() => router.push('/conversation')}
+        >
+          <Text style={styles.ctaText}>Start Talking</Text>
+        </Pressable>
+        {phraseCount > 0 && (
+          <Pressable
+            style={({pressed}) => [styles.secondary, pressed && styles.ctaPressed]}
+            onPress={() => router.push('/phrases')}
+          >
+            <Text style={styles.secondaryText}>
+              Mis frases <Text style={styles.secondaryCount}>· {phraseCount}</Text>
+            </Text>
+          </Pressable>
+        )}
+      </View>
     </SafeAreaView>
   );
 }
@@ -71,12 +92,31 @@ const styles = StyleSheet.create({
     marginTop: 12,
     lineHeight: 24,
   },
+  buttons: {
+    marginBottom: 24,
+    gap: 12,
+  },
   cta: {
     backgroundColor: colors.accent,
     borderRadius: 16,
     paddingVertical: 18,
     alignItems: 'center',
-    marginBottom: 24,
+  },
+  secondary: {
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.turquoise,
+  },
+  secondaryText: {
+    ...fonts.body,
+    fontWeight: '600',
+    color: colors.turquoise,
+  },
+  secondaryCount: {
+    color: colors.textSecondary,
+    fontWeight: '400',
   },
   ctaPressed: {
     opacity: 0.85,

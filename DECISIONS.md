@@ -39,6 +39,10 @@ Whisper hallucinates YouTube-caption boilerplate ("thanks for watching", "gracia
 - **VAD hardening** in the conversation screen: only transcribe when sustained speech was actually detected (`heardSpeech`) AND the clip is ≥700ms; the auto-listen start is delayed 550ms so the mic doesn't catch the tail of the app's own TTS (which would feed Whisper garbage). Together these keep silent clips out of Whisper entirely, with the phrase filter as the backstop.
 - **Audio session juggling**: `allowsRecording` is enabled only while actually recording and disabled right after stopping, so TTS playback comes out of the main speaker at full volume (iOS routes audio to the quiet earpiece when a recording session is active).
 
+## Mis frases review screen (2026-07-18)
+
+The MVP saved learned phrases to AsyncStorage but had no way to see them. Now there is: a **"Mis frases"** screen (`app/phrases.tsx`), newest-first, each card showing the Spanish, the English, and the best-score ring in the same color bands as the conversation screen. Tap a card to hear the phrase in the natural nova voice (replays are free — the MP3 is already cached from when it was learned), 🐢 replays it slow (same cached file at 0.6×), ✕ removes it (`removePhrase` added to the store). The Home screen gets a turquoise-outline secondary button with a live count that only appears once at least one phrase exists — a brand-new user still sees exactly one button. Deliberately not built yet: spaced-repetition scheduling or a quiz mode; this is the browse/replay layer that the trip actually needs.
+
 ## Testing
 
 - **jest-expo** preset; AsyncStorage uses its official jest mock (wired in `jest.setup.js`).

@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   clearPhrases,
   loadPhrases,
+  removePhrase,
   savePhrase,
 } from '../src/lib/phraseStore';
 
@@ -52,6 +53,21 @@ describe('phraseStore', () => {
   it('survives corrupted storage by returning an empty list', async () => {
     await AsyncStorage.setItem('@queonda/learned-phrases', 'not-json{');
     expect(await loadPhrases()).toEqual([]);
+  });
+
+  it('removes a single phrase by its Spanish text, leaving others intact', async () => {
+    await savePhrase(PHRASE);
+    await savePhrase({...PHRASE, spanish: 'Estoy bebiendo café', bestScore: 92});
+    const remaining = await removePhrase(PHRASE.spanish);
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].spanish).toBe('Estoy bebiendo café');
+    expect(await loadPhrases()).toEqual(remaining);
+  });
+
+  it('removing a phrase that does not exist is a no-op', async () => {
+    await savePhrase(PHRASE);
+    const remaining = await removePhrase('No existe');
+    expect(remaining).toHaveLength(1);
   });
 
   it('clears all phrases', async () => {
