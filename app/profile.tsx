@@ -73,7 +73,7 @@ export default function Profile() {
           <StatTile value={phrases.length} label="phrases" color={colors.turquoise} />
           <StatTile value={words.length} label="words" color={colors.sunshine} />
           <StatTile
-            value={avgScore ?? '—'}
+            value={avgScore ?? '--'}
             label="avg score"
             color={avgScore === null ? colors.textSecondary : scoreColorFor(avgScore)}
           />

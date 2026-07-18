@@ -39,6 +39,33 @@ Whisper hallucinates YouTube-caption boilerplate ("thanks for watching", "gracia
 - **VAD hardening** in the conversation screen: only transcribe when sustained speech was actually detected (`heardSpeech`) AND the clip is ≥700ms; the auto-listen start is delayed 550ms so the mic doesn't catch the tail of the app's own TTS (which would feed Whisper garbage). Together these keep silent clips out of Whisper entirely, with the phrase filter as the backstop.
 - **Audio session juggling**: `allowsRecording` is enabled only while actually recording and disabled right after stopping, so TTS playback comes out of the main speaker at full volume (iOS routes audio to the quiet earpiece when a recording session is active).
 
+## Em dash / en dash sweep of user-facing text (2026-07-19)
+
+Leander asked for every em dash (—) and en dash (–) in user-facing strings, UI copy, and the Claude system prompt to be replaced with a comma, period, or natural rewrite, plus an explicit rule added to the system prompt banning them going forward.
+
+**Scope discipline**: dashes inside code *comments* (JSDoc blocks, inline `//` explanations) were deliberately left untouched — those are for developers reading the source, not user-facing text, and the request was specifically about strings the user sees or hears, plus the system prompt. Rewriting every comment in the codebase would have been a much larger, out-of-scope change.
+
+**Fixed:**
+- **Claude system prompt** (`src/services/claude.ts`): every em dash in the prompt text itself removed (rewritten with commas/periods, e.g. "Output contract — CRITICAL" → "Output contract, CRITICAL"). Added an explicit new style rule: "Never use em dashes or en dashes in any response. Use a comma, period, or parentheses instead."
+- **Rendered/spoken UI strings**: the mic-permission explanation, all `MIC_LABELS` phase labels, the "Add where" chip's element text, every bilingual celebration/feedback line pair (`PERFECT_LINES`, `MOVING_ON_LINE`, `feedbackFor`), every store-level error message (`"I couldn't hear that..."`, `"Something went wrong..."`), the `env.ts` missing-API-key error messages, and the `elementInstruction` text sent to Claude when a chip specifies an extend element (`useConversation.ts` and its `nextCommand.ts` counterpart, kept consistent with each other).
+- **Numeric placeholder**: `profile.tsx`'s average-score tile showed an em dash as a "no score yet" placeholder; changed to `'--'` (a plain double hyphen), since that's a value display rather than prose and doesn't want punctuation-style rewriting.
+- **Test fixture** (`__tests__/nextCommand.test.ts`) updated to match the corrected chip-element string, since it had asserted the old em-dash text verbatim.
+
+**Explicitly left alone** (flagged for Leander's awareness, not fixed since it's outside the stated scope): `src/services/openaiTts.ts`'s `VOICE_ANCHOR` string, sent as the `instructions` parameter to OpenAI's TTS API, still contains an em dash. It's a prompt sent to an AI model much like the Claude system prompt is, but the request named the Claude system prompt specifically, not the TTS instructions, so it was left as-is pending an explicit ask.
+
+`npx tsc --noEmit` and `npx jest` (70 tests, 7 suites) both pass clean after the sweep.
+
+## Pre-overhaul discrepancy cleanup (2026-07-19)
+
+`CURRENT_STATE.md` (the UI-overhaul baseline doc) flagged four small issues to resolve before starting the redesign. All four fixed:
+
+- **SDK version discrepancy**: ran `npx expo-doctor` to find the *actual* failing check, which turned out to be a missing peer dependency (`expo-audio` requires `expo-asset`, which wasn't installed) rather than the README/DECISIONS.md "SDK 57" text itself, since `expo-doctor` doesn't check markdown prose. Installed `expo-asset` via `npx expo install expo-asset` (correctly added as both a dependency and an `app.json` config plugin, since `expo-asset` ships a real plugin). `expo-doctor` now reports 18/18 checks passing. Separately corrected README.md's stale "SDK 57" to "SDK 54" (matching the actually-installed `expo: ^54.0.36`), and annotated the SDK 57 references earlier in this file as historical rather than deleting them, since a prior commit explicitly downgraded 57→54 to match the installed Expo Go app version.
+- **Unused `@/*` path alias**: removed from `tsconfig.json` entirely, no file in the project used it.
+- **Unused `stopSpeaking()` export**: removed from `src/services/tts.ts`. Its `expo-speech` import (`Speech`) is still used elsewhere in the same file, so no dangling import resulted.
+- **`expo-constants`/`expo-linking` question**: confirmed these are legitimate transitive/config-only dependencies (not dead weight), left as-is.
+
+`npx tsc --noEmit`, `npx jest` (70 tests), and `npx expo-doctor` (18/18) all pass clean after these fixes.
+
 ## Score-row subtitle was missing entirely, and the first fix mistranslated (2026-07-19)
 
 Leander's screenshot showed the bilingual-subtitles feature working correctly for coach lines (confirming Claude's `coach_line_spanish` field genuinely works on live traffic — a real win, since that was unverified going in) — but the score row itself ("¡Eso es! That was spot on.") had no separated translation at all, because its text came from `PERFECT_LINES`/`feedbackFor`, hardcoded strings I never touched when adding the subtitle feature. Those strings blended Spanish and English into one line (a Spanish exclamation + a distinct English sentence) rather than being two versions of the same content.

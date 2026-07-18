@@ -9,7 +9,7 @@ describe('recognizeCommand', () => {
   it('recognizes an element-specific extend command', () => {
     expect(recognizeCommand('dónde')).toEqual({
       kind: 'extend',
-      element: 'a location — where this is happening',
+      element: 'a location, where this is happening',
     });
     expect(recognizeCommand('cuándo')).toEqual({
       kind: 'extend',

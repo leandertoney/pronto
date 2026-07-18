@@ -321,7 +321,7 @@ export default function Conversation() {
         <View style={styles.permissionBox}>
           <Text style={styles.permissionTitle}>We need your voice 🎙️</Text>
           <Text style={styles.permissionBody}>
-            Qué Onda is a speaking app — without the microphone there's nothing
+            Qué Onda is a speaking app, without the microphone there's nothing
             to practice. Enable microphone access for Expo Go in Settings, then
             come back and we'll pick it right up.
           </Text>
@@ -488,7 +488,7 @@ function ScoreRow({entry}: {entry: TranscriptEntry}) {
 
 const NEXT_CHIPS: Array<{label: string; choice: NextChoice}> = [
   {label: '➕ Build on it', choice: {kind: 'extend'}},
-  {label: '📍 Add where', choice: {kind: 'extend', element: 'a location — where this is happening'}},
+  {label: '📍 Add where', choice: {kind: 'extend', element: 'a location, where this is happening'}},
   {label: '🕐 Add when', choice: {kind: 'extend', element: 'a time of day'}},
   {label: '😊 Add a feeling', choice: {kind: 'extend', element: 'how the user feels about it'}},
   {label: '🔄 New topic', choice: {kind: 'new-topic'}},
@@ -527,12 +527,12 @@ const MIC_LABELS: Record<Phase, string> = {
   greeting: 'Say hi in a second…',
   'awaiting-english': 'Tell me what you’re doing',
   recording: 'Listening… pause when you’re done',
-  transcribing: 'Got it — writing that down…',
+  transcribing: 'Got it, writing that down…',
   thinking: 'Thinking…',
   speaking: 'Speaking…',
-  'awaiting-repeat': 'Your turn — say it in Spanish',
+  'awaiting-repeat': 'Your turn, say it in Spanish',
   scoring: 'Scoring your attempt…',
-  choosing: 'Say "continúa" or "progreso" — or pick a chip 👆',
+  choosing: 'Say "continúa" or "progreso," or pick a chip 👆',
 };
 
 function MicButton({

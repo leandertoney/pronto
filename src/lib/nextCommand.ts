@@ -20,7 +20,7 @@ interface CommandMatch {
 
 const MATCHES: CommandMatch[] = [
   {
-    command: {kind: 'extend', element: 'a location — where this is happening'},
+    command: {kind: 'extend', element: 'a location, where this is happening'},
     phrases: ['donde', 'agrega donde', 'agrega un lugar', 'un lugar'],
   },
   {

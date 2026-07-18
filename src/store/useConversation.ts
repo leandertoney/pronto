@@ -100,7 +100,7 @@ function pickPerfectLine(): Bilingual {
 }
 
 const MOVING_ON_LINE: Bilingual = {
-  en: "Great effort — you'll get more reps at this. Let's keep going!",
+  en: "Great effort, you'll get more reps at this. Let's keep going!",
   es: '¡Buen esfuerzo! Vas a practicar esto más. ¡Sigamos!',
 };
 
@@ -169,7 +169,7 @@ export const useConversation = create<ConversationState>((set, get) => ({
       if (!english) {
         set({
           phase: 'awaiting-english',
-          error: "I couldn't hear that — try again a bit closer to the mic.",
+          error: "I couldn't hear that. Try again a bit closer to the mic.",
         });
         return;
       }
@@ -177,7 +177,7 @@ export const useConversation = create<ConversationState>((set, get) => ({
     } catch (e) {
       set({
         phase: 'awaiting-english',
-        error: e instanceof Error ? e.message : 'Something went wrong — try again.',
+        error: e instanceof Error ? e.message : 'Something went wrong, try again.',
       });
     }
   },
@@ -242,7 +242,7 @@ export const useConversation = create<ConversationState>((set, get) => ({
     } catch (e) {
       set({
         phase: 'awaiting-english',
-        error: e instanceof Error ? e.message : 'Something went wrong — try again.',
+        error: e instanceof Error ? e.message : 'Something went wrong, try again.',
       });
     }
   },
@@ -329,7 +329,7 @@ export const useConversation = create<ConversationState>((set, get) => ({
     } catch (e) {
       set({
         phase: 'awaiting-repeat',
-        error: e instanceof Error ? e.message : 'Something went wrong — try again.',
+        error: e instanceof Error ? e.message : 'Something went wrong, try again.',
       });
     }
   },
@@ -363,7 +363,7 @@ export const useConversation = create<ConversationState>((set, get) => ({
       set({phase: 'thinking', error: null});
 
       const elementInstruction = choice.element
-        ? `adding exactly one new element — specifically ${choice.element}`
+        ? `adding exactly one new element, specifically ${choice.element}`
         : 'adding exactly one new element of your choice';
       const history: ChatMessage[] = [
         ...get().claudeHistory,
@@ -410,7 +410,7 @@ export const useConversation = create<ConversationState>((set, get) => ({
     } catch (e) {
       set({
         phase: 'choosing',
-        error: e instanceof Error ? e.message : 'Something went wrong — try again.',
+        error: e instanceof Error ? e.message : 'Something went wrong, try again.',
       });
     }
   },
@@ -443,8 +443,8 @@ function feedbackFor(tier: 'close' | 'retry'): Bilingual {
       };
     case 'retry':
       return {
-        en: "Let's hear it slowly one more time — then you try.",
-        es: 'Vamos a escucharlo despacio una vez más — luego tú lo intentas.',
+        en: "Let's hear it slowly one more time, then you try.",
+        es: 'Vamos a escucharlo despacio una vez más, luego tú lo intentas.',
       };
   }
 }
