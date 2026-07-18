@@ -35,7 +35,8 @@ export interface TranscriptEntry {
   id: string;
   kind: 'coach' | 'user-english' | 'spanish' | 'score' | 'user-attempt';
   text: string;
-  englishMeaning?: string;
+  englishMeaning?: string; // English translation, shown under a Spanish line
+  spanishTranslation?: string; // Spanish translation, shown under an English line
   score?: number;
   heard?: string; // what Whisper transcribed from the attempt
   targetWords?: WordHit[]; // per-word hit/miss vs the target phrase
@@ -114,7 +115,12 @@ export const useConversation = create<ConversationState>((set, get) => ({
     set({
       phase: 'greeting',
       transcript: [
-        {id: nextId(), kind: 'coach', text: `${GREETING_ES} ${GREETING_EN}`},
+        {
+          id: nextId(),
+          kind: 'coach',
+          text: GREETING_EN,
+          spanishTranslation: GREETING_ES,
+        },
       ],
       claudeHistory: [],
       currentTarget: null,
@@ -166,10 +172,11 @@ export const useConversation = create<ConversationState>((set, get) => ({
   // redundant Whisper call on the same audio clip.
   handleEnglishText: async (english: string) => {
     try {
+      const userEntryId = nextId();
       set((s) => ({
         transcript: [
           ...s.transcript,
-          {id: nextId(), kind: 'user-english', text: english},
+          {id: userEntryId, kind: 'user-english', text: english},
         ],
         phase: 'thinking',
       }));
@@ -192,14 +199,23 @@ export const useConversation = create<ConversationState>((set, get) => ({
         },
         retries: 0,
         transcript: [
-          ...s.transcript,
+          ...s.transcript.map((entry) =>
+            entry.id === userEntryId && reply.user_input_spanish
+              ? {...entry, spanishTranslation: reply.user_input_spanish}
+              : entry,
+          ),
           {
             id: nextId(),
             kind: 'spanish',
             text: reply.spanish_phrase,
             englishMeaning: reply.english_meaning,
           },
-          {id: nextId(), kind: 'coach', text: reply.coach_line_english},
+          {
+            id: nextId(),
+            kind: 'coach',
+            text: reply.coach_line_english,
+            spanishTranslation: reply.coach_line_spanish || undefined,
+          },
         ],
         phase: 'speaking',
       }));
@@ -225,7 +241,17 @@ export const useConversation = create<ConversationState>((set, get) => ({
 
       set((s) => ({
         transcript: attempt
-          ? [...s.transcript, {id: nextId(), kind: 'user-attempt', text: attempt}]
+          ? [
+              ...s.transcript,
+              {
+                id: nextId(),
+                kind: 'user-attempt',
+                text: attempt,
+                // The meaning they were aiming for, not a literal translation
+                // of what Whisper heard — useful even when the attempt misses.
+                englishMeaning: target.english,
+              },
+            ]
           : s.transcript,
         phase: 'scoring',
       }));
@@ -304,7 +330,12 @@ export const useConversation = create<ConversationState>((set, get) => ({
           retries: 0,
           transcript: [
             ...s.transcript,
-            {id: nextId(), kind: 'coach', text: `${NEW_TOPIC_ES} ${NEW_TOPIC_EN}`},
+            {
+              id: nextId(),
+              kind: 'coach',
+              text: NEW_TOPIC_EN,
+              spanishTranslation: NEW_TOPIC_ES,
+            },
           ],
           phase: 'speaking',
           error: null,
@@ -349,7 +380,12 @@ export const useConversation = create<ConversationState>((set, get) => ({
             text: reply.spanish_phrase,
             englishMeaning: reply.english_meaning,
           },
-          {id: nextId(), kind: 'coach', text: reply.coach_line_english},
+          {
+            id: nextId(),
+            kind: 'coach',
+            text: reply.coach_line_english,
+            spanishTranslation: reply.coach_line_spanish || undefined,
+          },
         ],
         phase: 'speaking',
       }));

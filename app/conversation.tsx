@@ -382,12 +382,25 @@ function TranscriptRow({
 }) {
   switch (entry.kind) {
     case 'coach':
-      return <Text style={styles.coachLine}>{entry.text}</Text>;
+      return (
+        <View style={styles.coachBlock}>
+          <Text style={styles.coachLine}>{entry.text}</Text>
+          {entry.spanishTranslation ? (
+            <Text style={styles.coachTranslation}>{entry.spanishTranslation}</Text>
+          ) : null}
+        </View>
+      );
     case 'user-english':
     case 'user-attempt':
       return (
         <View style={[styles.bubble, styles.userBubble]}>
           <Text style={styles.userText}>{entry.text}</Text>
+          {entry.kind === 'user-english' && entry.spanishTranslation ? (
+            <Text style={styles.userTranslation}>{entry.spanishTranslation}</Text>
+          ) : null}
+          {entry.kind === 'user-attempt' && entry.englishMeaning ? (
+            <Text style={styles.userTranslation}>{entry.englishMeaning}</Text>
+          ) : null}
         </View>
       );
     case 'spanish':
@@ -610,10 +623,18 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     gap: 10,
   },
+  coachBlock: {
+    marginTop: 8,
+  },
   coachLine: {
     ...fonts.body,
     color: colors.textSecondary,
-    marginTop: 8,
+  },
+  coachTranslation: {
+    ...fonts.caption,
+    color: colors.turquoise,
+    marginTop: 2,
+    fontStyle: 'italic',
   },
   bubble: {
     borderRadius: 16,
@@ -628,6 +649,12 @@ const styles = StyleSheet.create({
   userText: {
     ...fonts.body,
     color: colors.textPrimary,
+  },
+  userTranslation: {
+    ...fonts.caption,
+    color: colors.textSecondary,
+    marginTop: 4,
+    fontStyle: 'italic',
   },
   spanishBubble: {
     backgroundColor: colors.spanishBubble,

@@ -4,6 +4,8 @@ const VALID = {
   spanish_phrase: 'Estoy trabajando en mi laptop',
   english_meaning: "I'm working on my laptop",
   coach_line_english: "Nice! Here's how you say that — give it a try:",
+  coach_line_spanish: '¡Bien! Así se dice — ¡inténtalo!',
+  user_input_spanish: 'Estoy trabajando en mi computadora portátil',
   is_extension: false,
   words: [
     {word: 'Estoy', meaning: "I am"},
@@ -72,6 +74,25 @@ describe('parseTutorReply', () => {
     expect(() =>
       parseTutorReply(JSON.stringify({spanish_phrase: 'hola'})),
     ).toThrow('missing required fields');
+  });
+
+  it('defaults coach_line_spanish and user_input_spanish to empty strings when missing or non-string', () => {
+    const {coach_line_spanish: _a, user_input_spanish: _b, ...withoutTranslations} = VALID;
+    const reply = parseTutorReply(JSON.stringify(withoutTranslations));
+    expect(reply.coach_line_spanish).toBe('');
+    expect(reply.user_input_spanish).toBe('');
+
+    const nonString = parseTutorReply(
+      JSON.stringify({...VALID, coach_line_spanish: 42, user_input_spanish: null}),
+    );
+    expect(nonString.coach_line_spanish).toBe('');
+    expect(nonString.user_input_spanish).toBe('');
+  });
+
+  it('parses valid coach_line_spanish and user_input_spanish', () => {
+    const reply = parseTutorReply(JSON.stringify(VALID));
+    expect(reply.coach_line_spanish).toBe(VALID.coach_line_spanish);
+    expect(reply.user_input_spanish).toBe(VALID.user_input_spanish);
   });
 
   it('defaults words to an empty array when missing or not an array', () => {

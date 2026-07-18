@@ -13,6 +13,8 @@ export interface TutorReply {
   spanish_phrase: string;
   english_meaning: string;
   coach_line_english: string;
+  coach_line_spanish: string;
+  user_input_spanish: string; // Spanish translation of the user's English utterance; '' when not applicable (e.g. an EXTEND call has no fresh user utterance)
   is_extension: boolean;
   words: WordGloss[];
 }
@@ -58,6 +60,10 @@ export function parseTutorReply(raw: string): TutorReply {
     spanish_phrase: obj.spanish_phrase,
     english_meaning: obj.english_meaning,
     coach_line_english: obj.coach_line_english,
+    coach_line_spanish:
+      typeof obj.coach_line_spanish === 'string' ? obj.coach_line_spanish : '',
+    user_input_spanish:
+      typeof obj.user_input_spanish === 'string' ? obj.user_input_spanish : '',
     is_extension: obj.is_extension === true,
     words: parseWords(obj.words),
   };

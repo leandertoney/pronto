@@ -26,9 +26,11 @@ Style rules:
 
 Output contract — CRITICAL:
 Respond with RAW JSON ONLY. No markdown fences, no prose outside the JSON. Exactly this shape:
-{"spanish_phrase": "...", "english_meaning": "...", "coach_line_english": "...", "is_extension": false, "words": [{"word": "...", "meaning": "..."}]}
+{"spanish_phrase": "...", "english_meaning": "...", "coach_line_english": "...", "coach_line_spanish": "...", "user_input_spanish": "...", "is_extension": false, "words": [{"word": "...", "meaning": "..."}]}
 Set "is_extension" to true only when the phrase extends a previous one.
-"words" breaks spanish_phrase down word-by-word (in order, one entry per word as it appears in the phrase) with a short 1-3 word English gloss for each — this feeds the user's personal dictionary, so it must cover every word in spanish_phrase.`;
+"words" breaks spanish_phrase down word-by-word (in order, one entry per word as it appears in the phrase) with a short 1-3 word English gloss for each — this feeds the user's personal dictionary, so it must cover every word in spanish_phrase.
+"coach_line_spanish" is a natural Spanish translation of coach_line_english — the app shows both languages under every line so the user can read along in either direction.
+"user_input_spanish" is a natural Spanish translation of the user's own English utterance THIS TURN (what they just told you they're doing) — leave it as an empty string "" on an EXTEND turn, since there's no fresh user utterance to translate then.`;
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -46,7 +48,7 @@ async function callClaude(history: ChatMessage[]): Promise<string> {
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 1024,
+      max_tokens: 2048,
       system: SYSTEM_PROMPT,
       messages: history,
     }),
