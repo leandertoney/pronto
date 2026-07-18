@@ -36,7 +36,8 @@
         {
           "microphonePermission": "Qué Onda listens to you speak so it can teach you Spanish phrases for what you're doing right now."
         }
-      ]
+      ],
+      "expo-asset"
     ]
   }
 }

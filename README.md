@@ -2,7 +2,7 @@
 
 Contextual Spanish learning: the app asks what you're *actually doing right now* and teaches you to say it in Spanish, then keeps extending the phrase one element at a time so every turn reinforces what you already learned.
 
-Built with Expo (SDK 57) + TypeScript + expo-router. Runs entirely in **stock Expo Go** — no dev builds, no native modules.
+Built with Expo (SDK 54) + TypeScript + expo-router. Runs entirely in **stock Expo Go** — no dev builds, no native modules.
 
 ## The loop
 

@@ -4,8 +4,8 @@ Judgment calls made while building the MVP in one shot, per the brief's "ask zer
 
 ## Stack & libraries
 
-- **Expo SDK 57** (latest stable at build time) with the blank TypeScript template plus expo-router added; `main` is `expo-router/entry`.
-- **`expo-audio` over `expo-av`** for recording — it's the current, supported audio API on SDK 57 (expo-av is deprecated) and works in Expo Go.
+- **Expo SDK 57** (latest stable at build time) with the blank TypeScript template plus expo-router added; `main` is `expo-router/entry`. **Later downgraded to SDK 54** (see the "Downgrade to Expo SDK 54" commit) to match the installed Expo Go app version — SDK 54 is what's actually running; this entry is kept for history.
+- **`expo-audio` over `expo-av`** for recording — it's the current, supported audio API on modern Expo SDKs (expo-av is deprecated) and works in Expo Go.
 - **Raw `fetch` for both OpenAI and Anthropic** instead of their SDKs. Keeps the bundle small, avoids any Node-shim risk inside Expo Go, and the brief's contract (send full history, strip fences, defensive parse) is inherently manual anyway. The Anthropic call includes the `anthropic-dangerous-direct-browser-access` header, which is accurate: this is a client-side key for personal testing (see README warning).
 - **Model `claude-sonnet-4-6`** exactly as specified in the brief (verified as a current, active Anthropic model ID).
 - **Zustand** holds the whole conversation state machine (`src/store/useConversation.ts`); the screens are thin views over it.

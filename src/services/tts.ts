@@ -115,7 +115,3 @@ export async function speakSpanish(text: string, slow = false): Promise<void> {
 export async function speakEnglish(text: string): Promise<void> {
   await speakNova(text, 'en', false);
 }
-
-export function stopSpeaking(): void {
-  Speech.stop();
-}

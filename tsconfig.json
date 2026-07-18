@@ -4,12 +4,7 @@
     "strict": true,
     "types": [
       "jest"
-    ],
-    "paths": {
-      "@/*": [
-        "./src/*"
-      ]
-    }
+    ]
   },
   "include": [
     "app",
