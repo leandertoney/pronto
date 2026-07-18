@@ -105,6 +105,14 @@ export default function Conversation() {
       if (cancelled) return;
       setMicPermission(granted ? 'granted' : 'denied');
       if (granted) {
+        // Explicitly set playback (non-recording) audio mode before the
+        // very first thing the app ever speaks — the greeting. Without
+        // this, that first line plays under whatever ambient/default audio
+        // session iOS + Expo Go left behind after the permission prompt,
+        // which is exactly the kind of state that routes to the quiet
+        // earpiece or plays back inconsistently.
+        await exitRecordingMode();
+        if (cancelled) return;
         await startSession();
       }
     })();
