@@ -39,6 +39,18 @@ Whisper hallucinates YouTube-caption boilerplate ("thanks for watching", "gracia
 - **VAD hardening** in the conversation screen: only transcribe when sustained speech was actually detected (`heardSpeech`) AND the clip is ≥700ms; the auto-listen start is delayed 550ms so the mic doesn't catch the tail of the app's own TTS (which would feed Whisper garbage). Together these keep silent clips out of Whisper entirely, with the phrase filter as the backstop.
 - **Audio session juggling**: `allowsRecording` is enabled only while actually recording and disabled right after stopping, so TTS playback comes out of the main speaker at full volume (iOS routes audio to the quiet earpiece when a recording session is active).
 
+## Adaptive VAD — fixed-dB thresholds broke silence detection entirely (2026-07-19)
+
+Leander reported the app listening for 20-30 seconds after he stopped talking — completely unacceptable, and he asked for the silence hold to be ~1300ms. The number he saw (25-30s) matches `MAX_UTTERANCE_MS` (the hard cap) almost exactly, which means speech WAS being detected but the silence-ending path never fired at all — so simply changing `SILENCE_HOLD_MS` to 1300ms would not have fixed this on its own; that constant only matters once silence is actually detected, and it wasn't.
+
+Root cause: the VAD used fixed absolute thresholds (`SPEECH_DB = -35`, `SILENCE_DB = -40`) tuned once and assumed to hold everywhere. Real rooms/phones have different noise floors — if ambient noise sits above -40dB (a fan, background TV, a phone's own gain characteristics), the recording never reads as "quiet" and the silence branch is permanently unreachable, so every utterance runs to the 25s hard cap. This could not be confirmed further without on-device metering data, so rather than re-guess a different pair of absolute numbers, the approach changed to be scale-relative instead:
+
+- **Calibration**: the first `CALIBRATION_MS` (300ms) of each recording samples the room's actual noise floor (tracks the minimum metering level seen).
+- **Adaptive thresholds**: speech = floor + `SPEECH_MARGIN_DB` (12dB); silence = back down to floor + `SILENCE_MARGIN_DB` (6dB). Both relative to the calibrated floor, not an absolute number, so it self-adjusts to whatever room/device it's running in.
+- **`SILENCE_HOLD_MS` set to 1300ms** per Leander's explicit ask — this is the correct knob now that detection can actually fire.
+- **Diagnostic logging added** (`[vad] t=...ms level=...dB floor=...dB speech=...`, throttled to ~400ms, plus a `console.warn` if the 25s hard cap is ever hit again) since this class of bug is invisible without seeing the actual metering numbers a real device produces — if the adaptive approach still misbehaves, the Metro terminal will show why instead of another guess-and-ship cycle.
+- **Known open risk, explicitly not verified**: `recorderState.metering`'s value range/scale from `expo-audio` was never confirmed against real device output (only inferred from the -35/-40 constants the app shipped with originally). If the scale isn't dBFS-like, the dB margins above may still need adjusting — the log output will make this immediately visible on the next device run.
+
 ## Word dictionary, progress hub, spoken meta-commands (2026-07-18)
 
 Leander wanted a profile/hub screen tracking a per-word dictionary, plus the ability to say things like "continue" or "progress" naturally mid-conversation instead of only tapping chips. Scoped to three pieces this round (a fourth — homework grading and a weekly recap quiz — was explicitly parked for later, since "what counts as homework" and "what the weekly quiz actually is" both need their own design pass once there's real usage data to look at).

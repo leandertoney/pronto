@@ -32,14 +32,24 @@ import {
 
 /**
  * Hands-free conversational flow: after the app finishes speaking it starts
- * listening automatically. Simple metering-based voice activity detection —
- * once you've spoken and then stay quiet for SILENCE_HOLD_MS, the recording
- * is sent. The mic button is a "send now" override; auto-listen can be
- * toggled off for tap-to-talk.
+ * listening automatically. Metering-based voice activity detection — once
+ * you've spoken and then stay quiet for SILENCE_HOLD_MS, the recording is
+ * sent. The mic button is a "send now" override; auto-listen can be toggled
+ * off for tap-to-talk.
+ *
+ * VAD is ADAPTIVE, not fixed-dB (2026-07-19 fix): a hardcoded -35/-40dB
+ * threshold assumes a specific noise floor that doesn't hold across
+ * phones/rooms — when ambient noise sits above -40dB, silence is never
+ * detected and every utterance runs to the MAX_UTTERANCE_MS hard cap (this
+ * is what happened: reports of ~25-30s listens match MAX_UTTERANCE_MS
+ * exactly, meaning speech was detected but silence never was). Instead: the
+ * first CALIBRATION_MS of each recording samples the room's actual floor,
+ * then speech/silence are judged relative to that floor, not an absolute.
  */
-const SPEECH_DB = -35; // above this = speech
-const SILENCE_DB = -40; // below this = silence
-const SILENCE_HOLD_MS = 650; // quiet this long after speech -> send
+const CALIBRATION_MS = 300; // sample the room's noise floor before judging speech/silence
+const SPEECH_MARGIN_DB = 12; // this far above the calibrated floor = speech
+const SILENCE_MARGIN_DB = 6; // back down to this close to the floor = silence
+const SILENCE_HOLD_MS = 1300; // quiet this long after speech -> send
 const NO_SPEECH_TIMEOUT_MS = 8000; // no speech at all -> restart listening
 const MAX_UTTERANCE_MS = 25000; // hard cap per utterance
 const MIN_UTTERANCE_MS = 500; // shorter than this -> discard (avoids blips)
@@ -78,6 +88,8 @@ export default function Conversation() {
   const listenStartRef = useRef(0);
   const speechDetectedRef = useRef(false);
   const silenceSinceRef = useRef<number | null>(null);
+  const noiseFloorRef = useRef<number | null>(null); // calibrated per-listen, not a fixed dB constant
+  const lastMeteringLogRef = useRef(0); // throttles the diagnostic metering log
   // "choosing" auto-listen flips phase to 'recording' almost immediately,
   // which would otherwise unmount the chips before they're readable. The
   // store remembers what phase we were in before recording started
@@ -119,6 +131,7 @@ export default function Conversation() {
       listenStartRef.current = Date.now();
       speechDetectedRef.current = false;
       silenceSinceRef.current = null;
+      noiseFloorRef.current = null;
       setRecording();
     } finally {
       busyRef.current = false;
@@ -213,7 +226,9 @@ export default function Conversation() {
     return undefined;
   }, [phase, autoListen, micPermission, startListening]);
 
-  // Voice activity detection: watch metering while recording.
+  // Voice activity detection: watch metering while recording. Adaptive —
+  // see the block comment at the top of the file for why this isn't a fixed
+  // dB threshold anymore.
   useEffect(() => {
     if (phase !== 'recording' || !recorderState.isRecording) return;
     const now = Date.now();
@@ -221,15 +236,31 @@ export default function Conversation() {
     const level = recorderState.metering;
 
     if (typeof level === 'number') {
-      if (level > SPEECH_DB) {
-        speechDetectedRef.current = true;
-        silenceSinceRef.current = null;
-      } else if (speechDetectedRef.current && level < SILENCE_DB) {
-        if (silenceSinceRef.current === null) {
-          silenceSinceRef.current = now;
-        } else if (now - silenceSinceRef.current >= SILENCE_HOLD_MS) {
-          finishListening(true);
-          return;
+      // Diagnostic: throttled so it doesn't flood the log, but enough to see
+      // the actual metering range this device/room produces if VAD misbehaves.
+      if (now - lastMeteringLogRef.current > 400) {
+        lastMeteringLogRef.current = now;
+        console.log(
+          `[vad] t=${elapsed}ms level=${level.toFixed(1)}dB floor=${noiseFloorRef.current?.toFixed(1) ?? 'calibrating'} speech=${speechDetectedRef.current}`,
+        );
+      }
+
+      if (elapsed < CALIBRATION_MS) {
+        // Still calibrating: track the quietest level seen as the floor.
+        noiseFloorRef.current =
+          noiseFloorRef.current === null ? level : Math.min(noiseFloorRef.current, level);
+      } else {
+        const floor = noiseFloorRef.current ?? level;
+        if (level > floor + SPEECH_MARGIN_DB) {
+          speechDetectedRef.current = true;
+          silenceSinceRef.current = null;
+        } else if (speechDetectedRef.current && level < floor + SILENCE_MARGIN_DB) {
+          if (silenceSinceRef.current === null) {
+            silenceSinceRef.current = now;
+          } else if (now - silenceSinceRef.current >= SILENCE_HOLD_MS) {
+            finishListening(true);
+            return;
+          }
         }
       }
     }
@@ -238,6 +269,7 @@ export default function Conversation() {
       // Heard nothing — recycle the listener so we don't record forever.
       finishListening(false);
     } else if (elapsed >= MAX_UTTERANCE_MS) {
+      console.warn('[vad] hit MAX_UTTERANCE_MS hard cap — silence was never detected');
       finishListening(speechDetectedRef.current);
     }
   }, [phase, recorderState, finishListening]);
