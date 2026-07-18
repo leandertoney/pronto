@@ -37,11 +37,11 @@ import {
  */
 const SPEECH_DB = -35; // above this = speech
 const SILENCE_DB = -40; // below this = silence
-const SILENCE_HOLD_MS = 1300; // quiet this long after speech -> send
+const SILENCE_HOLD_MS = 650; // quiet this long after speech -> send
 const NO_SPEECH_TIMEOUT_MS = 8000; // no speech at all -> restart listening
 const MAX_UTTERANCE_MS = 25000; // hard cap per utterance
-const MIN_UTTERANCE_MS = 700; // shorter than this -> discard (avoids blips)
-const LISTEN_START_DELAY_MS = 550; // let the app's own voice fully stop first
+const MIN_UTTERANCE_MS = 500; // shorter than this -> discard (avoids blips)
+const LISTEN_START_DELAY_MS = 250; // let the app's own voice fully stop first
 
 export default function Conversation() {
   const router = useRouter();
@@ -118,7 +118,9 @@ export default function Conversation() {
       if (busyRef.current) return;
       busyRef.current = true;
       try {
-        const wasRepeat = currentTarget !== null;
+        // During "choosing", talking again means a fresh topic, not a repeat
+        // of the just-completed phrase — route it like English input.
+        const wasRepeat = phase === 'awaiting-repeat' && currentTarget !== null;
         const duration = Date.now() - listenStartRef.current;
         const heardSpeech = speechDetectedRef.current;
         await recorder.stop();
@@ -144,6 +146,7 @@ export default function Conversation() {
     },
     [
       recorder,
+      phase,
       currentTarget,
       handleEnglishRecording,
       handleRepeatRecording,
@@ -152,11 +155,15 @@ export default function Conversation() {
   );
 
   // Auto-start listening whenever it's the user's turn (hands-free mode).
+  // "choosing" also listens — talking again is a faster way to continue than
+  // tapping a chip, and the chips remain as an explicit shortcut.
   useEffect(() => {
     if (
       autoListen &&
       micPermission === 'granted' &&
-      (phase === 'awaiting-english' || phase === 'awaiting-repeat')
+      (phase === 'awaiting-english' ||
+        phase === 'awaiting-repeat' ||
+        phase === 'choosing')
     ) {
       const t = setTimeout(() => startListening(), LISTEN_START_DELAY_MS);
       return () => clearTimeout(t);
@@ -193,7 +200,10 @@ export default function Conversation() {
     }
   }, [phase, recorderState, finishListening]);
 
-  const canUseMic = phase === 'awaiting-english' || phase === 'awaiting-repeat';
+  const canUseMic =
+    phase === 'awaiting-english' ||
+    phase === 'awaiting-repeat' ||
+    phase === 'choosing';
   const isRecording = phase === 'recording';
 
   const onMicPress = async () => {

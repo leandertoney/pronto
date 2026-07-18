@@ -110,8 +110,12 @@ export const useConversation = create<ConversationState>((set, get) => ({
   setRecording: () => set({phase: 'recording', error: null}),
 
   cancelRecording: () => {
-    const {currentTarget} = get();
-    set({phase: currentTarget ? 'awaiting-repeat' : 'awaiting-english'});
+    const {phase, currentTarget} = get();
+    if (phase === 'choosing') {
+      set({phase: 'choosing'});
+    } else {
+      set({phase: currentTarget ? 'awaiting-repeat' : 'awaiting-english'});
+    }
   },
 
   handleEnglishRecording: async (uri: string) => {

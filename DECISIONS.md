@@ -39,6 +39,13 @@ Whisper hallucinates YouTube-caption boilerplate ("thanks for watching", "gracia
 - **VAD hardening** in the conversation screen: only transcribe when sustained speech was actually detected (`heardSpeech`) AND the clip is ≥700ms; the auto-listen start is delayed 550ms so the mic doesn't catch the tail of the app's own TTS (which would feed Whisper garbage). Together these keep silent clips out of Whisper entirely, with the phrase filter as the backstop.
 - **Audio session juggling**: `allowsRecording` is enabled only while actually recording and disabled right after stopping, so TTS playback comes out of the main speaker at full volume (iOS routes audio to the quiet earpiece when a recording session is active).
 
+## Conversational feel tuning + choosing-phase regression fix (2026-07-18)
+
+Leander wanted the app to feel like a live conversation (listen continuously, respond the instant he stops talking) instead of a record → transcribe → reply cycle. True streaming STT (partial transcripts while speaking, no separate upload step) needs either a native speech module or raw-PCM streaming to a service like Deepgram — both require leaving Expo Go for a development build. He chose to stay in Expo Go for now and tune the existing VAD-based flow instead:
+
+- **`SILENCE_HOLD_MS` 1300ms → 650ms** and **`LISTEN_START_DELAY_MS` 550ms → 250ms** (`app/conversation.tsx`): she decides you're done talking twice as fast, and starts listening again twice as fast after she finishes speaking. `MIN_UTTERANCE_MS` dropped 700→500ms to match. These are the cheap, reversible levers; a real streaming rewrite is still on the table if this isn't enough — surfaced to Leander as a future decision, not decided here.
+- **Fixed a regression from the previous session**: the `choosing` phase (chips after completing a phrase) disabled auto-listen, forcing a mandatory tap — the opposite of "responds as soon as I finish talking." Auto-listen and the mic now work during `choosing` too; talking again is a faster alternative to tapping a chip. Talking during `choosing` routes through `handleEnglishRecording` (a fresh topic), not `handleRepeatRecording` — `finishListening`'s `wasRepeat` check is now gated on `phase === 'awaiting-repeat'`, not just `currentTarget !== null` (which was still set to the just-completed phrase during `choosing`). `cancelRecording` (silence recycle) also now returns to `choosing` instead of incorrectly falling back to `awaiting-repeat`.
+
 ## Live-testing feedback round (2026-07-18)
 
 Four changes from Leander's first real conversation with the app:
