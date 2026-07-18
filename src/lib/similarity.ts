@@ -50,6 +50,54 @@ export function scoreAttempt(target: string, attempt: string): number {
   return Math.round(Math.max(0, Math.min(1, similarity)) * 100);
 }
 
+export interface WordHit {
+  word: string; // the target word with its original accents/punctuation
+  hit: boolean; // true if the attempt contained this word
+}
+
+/**
+ * Per-word breakdown of an attempt: which target words were heard and which
+ * were missed. Uses longest-common-subsequence alignment on normalized tokens
+ * so word order matters, but display keeps the target's original spelling.
+ */
+export function diffWords(target: string, attempt: string): WordHit[] {
+  const targetWords = target.split(/\s+/).filter(Boolean);
+  const targetNorm = targetWords.map((w) => normalize(w));
+  const attemptNorm = normalize(attempt).split(' ').filter(Boolean);
+
+  const n = targetNorm.length;
+  const m = attemptNorm.length;
+  const dp: number[][] = Array.from({length: n + 1}, () =>
+    new Array<number>(m + 1).fill(0),
+  );
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] =
+        targetNorm[i] === attemptNorm[j]
+          ? dp[i + 1][j + 1] + 1
+          : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+
+  const hits = new Array<boolean>(n).fill(false);
+  let i = 0;
+  let j = 0;
+  while (i < n && j < m) {
+    if (targetNorm[i] === attemptNorm[j]) {
+      hits[i] = true;
+      i++;
+      j++;
+    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+      i++;
+    } else {
+      j++;
+    }
+  }
+
+  // Words that normalize to nothing (pure punctuation) can't be "missed".
+  return targetWords.map((word, k) => ({word, hit: hits[k] || targetNorm[k] === ''}));
+}
+
 export type ScoreTier = 'perfect' | 'close' | 'retry';
 
 export function tierForScore(score: number): ScoreTier {

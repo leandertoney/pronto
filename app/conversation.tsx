@@ -22,6 +22,7 @@ import {
 } from '../src/services/audioSession';
 import {colors, fonts} from '../src/theme';
 import {
+  NextChoice,
   Phase,
   TranscriptEntry,
   useConversation,
@@ -63,6 +64,7 @@ export default function Conversation() {
   const cancelRecording = useConversation((s) => s.cancelRecording);
   const handleEnglishRecording = useConversation((s) => s.handleEnglishRecording);
   const handleRepeatRecording = useConversation((s) => s.handleRepeatRecording);
+  const chooseNext = useConversation((s) => s.chooseNext);
   const replayTarget = useConversation((s) => s.replayTarget);
   const reset = useConversation((s) => s.reset);
 
@@ -246,6 +248,8 @@ export default function Conversation() {
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
+      {phase === 'choosing' && <NextChips onChoose={chooseNext} />}
+
       <MicButton
         phase={phase}
         autoListen={autoListen}
@@ -291,21 +295,86 @@ function TranscriptRow({
         </View>
       );
     case 'score':
-      return <ScoreRow score={entry.score ?? 0} text={entry.text} />;
+      return <ScoreRow entry={entry} />;
     default:
       return null;
   }
 }
 
-function ScoreRow({score, text}: {score: number; text: string}) {
+function ScoreRow({entry}: {entry: TranscriptEntry}) {
+  const score = entry.score ?? 0;
+  const perfect = score >= 80;
   const color =
-    score >= 80 ? colors.scoreGood : score >= 50 ? colors.scoreMid : colors.scoreLow;
+    perfect ? colors.scoreGood : score >= 50 ? colors.scoreMid : colors.scoreLow;
+
+  // Pop in with a spring — big and bouncy for a great score.
+  const scale = useRef(new Animated.Value(0.3)).current;
+  useEffect(() => {
+    Animated.spring(scale, {
+      toValue: 1,
+      friction: perfect ? 3.5 : 6,
+      tension: 90,
+      useNativeDriver: true,
+    }).start();
+  }, [scale, perfect]);
+
+  const missed = entry.targetWords?.some((w) => !w.hit) ?? false;
+  const showWhy = missed && !!entry.heard;
+
   return (
-    <View style={styles.scoreRow}>
-      <View style={[styles.scoreRing, {borderColor: color}]}>
-        <Text style={[styles.scoreNumber, {color}]}>{score}</Text>
+    <Animated.View
+      style={[
+        styles.scoreCard,
+        perfect && styles.scoreCardPerfect,
+        {transform: [{scale}]},
+      ]}
+    >
+      <View style={styles.scoreRow}>
+        <View style={[styles.scoreRing, {borderColor: color}]}>
+          <Text style={[styles.scoreNumber, {color}]}>{score}</Text>
+        </View>
+        <Text style={[styles.scoreText, perfect && styles.scoreTextPerfect]}>
+          {perfect ? '🎉 ' : ''}
+          {entry.text}
+        </Text>
       </View>
-      <Text style={styles.scoreText}>{text}</Text>
+      {showWhy && (
+        <View style={styles.whyBox}>
+          <Text style={styles.whyTarget}>
+            {entry.targetWords!.map((w, i) => (
+              <Text key={i} style={w.hit ? styles.whyHit : styles.whyMiss}>
+                {w.word}
+                {i < entry.targetWords!.length - 1 ? ' ' : ''}
+              </Text>
+            ))}
+          </Text>
+          <Text style={styles.whyHeard}>I heard: “{entry.heard}”</Text>
+        </View>
+      )}
+    </Animated.View>
+  );
+}
+
+const NEXT_CHIPS: Array<{label: string; choice: NextChoice}> = [
+  {label: '➕ Build on it', choice: {kind: 'extend'}},
+  {label: '📍 Add where', choice: {kind: 'extend', element: 'a location — where this is happening'}},
+  {label: '🕐 Add when', choice: {kind: 'extend', element: 'a time of day'}},
+  {label: '😊 Add a feeling', choice: {kind: 'extend', element: 'how the user feels about it'}},
+  {label: '🔄 New topic', choice: {kind: 'new-topic'}},
+];
+
+function NextChips({onChoose}: {onChoose: (choice: NextChoice) => void}) {
+  return (
+    <View style={styles.chipsWrap}>
+      {NEXT_CHIPS.map((chip) => (
+        <Pressable
+          key={chip.label}
+          style={({pressed}) => [styles.chip, pressed && styles.chipPressed]}
+          onPress={() => onChoose(chip.choice)}
+        >
+          <Text style={styles.chipText}>{chip.label}</Text>
+        </Pressable>
+      ))}
     </View>
   );
 }
@@ -320,6 +389,7 @@ const MIC_LABELS: Record<Phase, string> = {
   speaking: 'Speaking…',
   'awaiting-repeat': 'Your turn — say it in Spanish',
   scoring: 'Scoring your attempt…',
+  choosing: 'What next? Pick one 👆',
 };
 
 function MicButton({
@@ -464,11 +534,74 @@ const styles = StyleSheet.create({
     ...fonts.caption,
     color: colors.textPrimary,
   },
+  scoreCard: {
+    marginVertical: 4,
+  },
+  scoreCardPerfect: {
+    backgroundColor: colors.englishBubble,
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: colors.sunshine,
+  },
   scoreRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginVertical: 4,
+  },
+  scoreTextPerfect: {
+    ...fonts.body,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  whyBox: {
+    marginTop: 10,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 10,
+  },
+  whyTarget: {
+    ...fonts.body,
+    color: colors.textPrimary,
+    lineHeight: 26,
+  },
+  whyHit: {
+    color: colors.scoreGood,
+  },
+  whyMiss: {
+    color: colors.scoreLow,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
+  },
+  whyHeard: {
+    ...fonts.caption,
+    color: colors.textSecondary,
+    marginTop: 6,
+    fontStyle: 'italic',
+  },
+  chipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingBottom: 4,
+  },
+  chip: {
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.turquoise,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  chipPressed: {
+    backgroundColor: colors.spanishBubble,
+  },
+  chipText: {
+    ...fonts.caption,
+    color: colors.turquoise,
+    fontWeight: '600',
   },
   scoreRing: {
     width: 54,

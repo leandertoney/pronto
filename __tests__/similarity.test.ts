@@ -1,9 +1,47 @@
 import {
+  diffWords,
   levenshtein,
   normalize,
   scoreAttempt,
   tierForScore,
 } from '../src/lib/similarity';
+
+describe('diffWords', () => {
+  it('marks every word hit on a perfect attempt (accents ignored)', () => {
+    const diff = diffWords('Estoy tomando café', 'estoy tomando cafe');
+    expect(diff).toEqual([
+      {word: 'Estoy', hit: true},
+      {word: 'tomando', hit: true},
+      {word: 'café', hit: true},
+    ]);
+  });
+
+  it('marks only the missing word as a miss', () => {
+    const diff = diffWords('Estoy tomando café ahora', 'estoy tomando café');
+    expect(diff.map((w) => w.hit)).toEqual([true, true, true, false]);
+  });
+
+  it('keeps the target original spelling in the output', () => {
+    const diff = diffWords('¿Qué onda?', 'que onda');
+    expect(diff.map((w) => w.word)).toEqual(['¿Qué', 'onda?']);
+    expect(diff.every((w) => w.hit)).toBe(true);
+  });
+
+  it('respects word order — a shuffled attempt does not fully match', () => {
+    const diff = diffWords('el perro grande', 'grande el perro');
+    expect(diff.filter((w) => w.hit).length).toBeLessThan(3);
+  });
+
+  it('marks everything missed on an empty attempt', () => {
+    const diff = diffWords('Estoy aquí', '');
+    expect(diff.map((w) => w.hit)).toEqual([false, false]);
+  });
+
+  it('handles a completely different attempt', () => {
+    const diff = diffWords('Estoy cocinando pasta', 'buenos días amigo');
+    expect(diff.every((w) => !w.hit)).toBe(true);
+  });
+});
 
 describe('normalize', () => {
   it('lowercases and strips accents', () => {
