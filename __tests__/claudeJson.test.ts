@@ -5,6 +5,13 @@ const VALID = {
   english_meaning: "I'm working on my laptop",
   coach_line_english: "Nice! Here's how you say that — give it a try:",
   is_extension: false,
+  words: [
+    {word: 'Estoy', meaning: "I am"},
+    {word: 'trabajando', meaning: 'working'},
+    {word: 'en', meaning: 'on'},
+    {word: 'mi', meaning: 'my'},
+    {word: 'laptop', meaning: 'laptop'},
+  ],
 };
 
 describe('extractJsonBlock', () => {
@@ -65,5 +72,35 @@ describe('parseTutorReply', () => {
     expect(() =>
       parseTutorReply(JSON.stringify({spanish_phrase: 'hola'})),
     ).toThrow('missing required fields');
+  });
+
+  it('defaults words to an empty array when missing or not an array', () => {
+    const {words: _omit, ...withoutWords} = VALID;
+    expect(parseTutorReply(JSON.stringify(withoutWords)).words).toEqual([]);
+    expect(
+      parseTutorReply(JSON.stringify({...VALID, words: 'not an array'})).words,
+    ).toEqual([]);
+  });
+
+  it('parses a valid words array', () => {
+    const reply = parseTutorReply(JSON.stringify(VALID));
+    expect(reply.words).toEqual(VALID.words);
+  });
+
+  it('drops malformed word entries but keeps valid ones', () => {
+    const reply = parseTutorReply(
+      JSON.stringify({
+        ...VALID,
+        words: [
+          {word: 'hola', meaning: 'hi'},
+          {word: 'oops'}, // missing meaning
+          {meaning: 'oops'}, // missing word
+          {word: '  ', meaning: 'blank word'}, // blank after trim
+          'not an object',
+          null,
+        ],
+      }),
+    );
+    expect(reply.words).toEqual([{word: 'hola', meaning: 'hi'}]);
   });
 });

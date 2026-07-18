@@ -20,6 +20,8 @@ import {
   exitRecordingMode,
   requestMicPermission,
 } from '../src/services/audioSession';
+import {recognizeCommand} from '../src/lib/nextCommand';
+import {transcribe} from '../src/services/whisper';
 import {colors, fonts} from '../src/theme';
 import {
   NextChoice,
@@ -56,6 +58,7 @@ export default function Conversation() {
   const [autoListen, setAutoListen] = useState(true);
 
   const phase = useConversation((s) => s.phase);
+  const preRecordPhase = useConversation((s) => s.preRecordPhase);
   const transcript = useConversation((s) => s.transcript);
   const currentTarget = useConversation((s) => s.currentTarget);
   const error = useConversation((s) => s.error);
@@ -63,9 +66,11 @@ export default function Conversation() {
   const setRecording = useConversation((s) => s.setRecording);
   const cancelRecording = useConversation((s) => s.cancelRecording);
   const handleEnglishRecording = useConversation((s) => s.handleEnglishRecording);
+  const handleEnglishText = useConversation((s) => s.handleEnglishText);
   const handleRepeatRecording = useConversation((s) => s.handleRepeatRecording);
   const chooseNext = useConversation((s) => s.chooseNext);
   const replayTarget = useConversation((s) => s.replayTarget);
+  const [pendingProgress, setPendingProgress] = useState(false);
   const reset = useConversation((s) => s.reset);
 
   const listRef = useRef<FlatList<TranscriptEntry>>(null);
@@ -73,6 +78,13 @@ export default function Conversation() {
   const listenStartRef = useRef(0);
   const speechDetectedRef = useRef(false);
   const silenceSinceRef = useRef<number | null>(null);
+  // "choosing" auto-listen flips phase to 'recording' almost immediately,
+  // which would otherwise unmount the chips before they're readable. The
+  // store remembers what phase we were in before recording started
+  // (preRecordPhase), so this derives from the SAME authority cancelRecording
+  // uses to decide where to return — no parallel state to drift out of sync.
+  const choosingActive =
+    phase === 'choosing' || (phase === 'recording' && preRecordPhase === 'choosing');
 
   useEffect(() => {
     let cancelled = false;
@@ -118,9 +130,9 @@ export default function Conversation() {
       if (busyRef.current) return;
       busyRef.current = true;
       try {
-        // During "choosing", talking again means a fresh topic, not a repeat
-        // of the just-completed phrase — route it like English input.
-        const wasRepeat = phase === 'awaiting-repeat' && currentTarget !== null;
+        // Route by the phase we were in BEFORE recording started, not the
+        // live phase (which is already 'recording' by the time this runs).
+        const wasRepeat = preRecordPhase === 'awaiting-repeat' && currentTarget !== null;
         const duration = Date.now() - listenStartRef.current;
         const heardSpeech = speechDetectedRef.current;
         await recorder.stop();
@@ -132,7 +144,27 @@ export default function Conversation() {
         const worthProcessing =
           process && uri !== null && heardSpeech && duration >= MIN_UTTERANCE_MS;
         if (worthProcessing) {
-          if (wasRepeat) {
+          if (choosingActive) {
+            // Give the user a chance to SAY what's next (in Spanish or
+            // English) instead of tapping a chip — same options, spoken.
+            // Transcribed once (not twice) to keep latency down. ASSUMED,
+            // NOT VERIFIED: the 'en' hint still reads short Spanish command
+            // words like "progreso" correctly. If on-device testing shows
+            // commands not firing (falls through to a new phrase instead),
+            // flip this to 'es' — the commands are Spanish words, so 'es'
+            // is the more likely-correct single hint if 'en' mangles them.
+            const heardText = await transcribe(uri, 'en');
+            const command = recognizeCommand(heardText);
+            if (command?.kind === 'progress') {
+              setPendingProgress(true);
+            } else if (command) {
+              await chooseNext(command);
+            } else if (heardText) {
+              await handleEnglishText(heardText);
+            } else {
+              cancelRecording();
+            }
+          } else if (wasRepeat) {
             await handleRepeatRecording(uri);
           } else {
             await handleEnglishRecording(uri);
@@ -147,12 +179,22 @@ export default function Conversation() {
     [
       recorder,
       phase,
+      choosingActive,
       currentTarget,
       handleEnglishRecording,
+      handleEnglishText,
       handleRepeatRecording,
+      chooseNext,
       cancelRecording,
     ],
   );
+
+  useEffect(() => {
+    if (pendingProgress) {
+      router.push('/profile');
+      setPendingProgress(false);
+    }
+  }, [pendingProgress, router]);
 
   // Auto-start listening whenever it's the user's turn (hands-free mode).
   // "choosing" also listens — talking again is a faster way to continue than
@@ -214,6 +256,25 @@ export default function Conversation() {
     }
   };
 
+  // A chip tap is an explicit choice — stop listening first (discarding the
+  // clip) so the mic doesn't also try to process whatever it half-heard.
+  const onChipChoice = useCallback(
+    async (choice: NextChoice) => {
+      if (isRecording) {
+        await finishListening(false);
+      }
+      await chooseNext(choice);
+    },
+    [isRecording, finishListening, chooseNext],
+  );
+
+  const onChipProgress = useCallback(async () => {
+    if (isRecording) {
+      await finishListening(false);
+    }
+    setPendingProgress(true);
+  }, [isRecording, finishListening]);
+
   if (micPermission === 'denied') {
     return (
       <SafeAreaView style={styles.container}>
@@ -258,7 +319,9 @@ export default function Conversation() {
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-      {phase === 'choosing' && <NextChips onChoose={chooseNext} />}
+      {choosingActive && (
+        <NextChips onChoose={onChipChoice} onProgress={onChipProgress} />
+      )}
 
       <MicButton
         phase={phase}
@@ -373,7 +436,13 @@ const NEXT_CHIPS: Array<{label: string; choice: NextChoice}> = [
   {label: '🔄 New topic', choice: {kind: 'new-topic'}},
 ];
 
-function NextChips({onChoose}: {onChoose: (choice: NextChoice) => void}) {
+function NextChips({
+  onChoose,
+  onProgress,
+}: {
+  onChoose: (choice: NextChoice) => void;
+  onProgress: () => void;
+}) {
   return (
     <View style={styles.chipsWrap}>
       {NEXT_CHIPS.map((chip) => (
@@ -385,6 +454,12 @@ function NextChips({onChoose}: {onChoose: (choice: NextChoice) => void}) {
           <Text style={styles.chipText}>{chip.label}</Text>
         </Pressable>
       ))}
+      <Pressable
+        style={({pressed}) => [styles.chip, styles.chipProgress, pressed && styles.chipPressed]}
+        onPress={onProgress}
+      >
+        <Text style={styles.chipText}>📊 Progress</Text>
+      </Pressable>
     </View>
   );
 }
@@ -399,7 +474,7 @@ const MIC_LABELS: Record<Phase, string> = {
   speaking: 'Speaking…',
   'awaiting-repeat': 'Your turn — say it in Spanish',
   scoring: 'Scoring your attempt…',
-  choosing: 'What next? Pick one 👆',
+  choosing: 'Say "continúa" or "progreso" — or pick a chip 👆',
 };
 
 function MicButton({
@@ -604,6 +679,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 8,
+  },
+  chipProgress: {
+    borderColor: colors.sunshine,
   },
   chipPressed: {
     backgroundColor: colors.spanishBubble,

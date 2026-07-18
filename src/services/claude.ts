@@ -26,8 +26,9 @@ Style rules:
 
 Output contract — CRITICAL:
 Respond with RAW JSON ONLY. No markdown fences, no prose outside the JSON. Exactly this shape:
-{"spanish_phrase": "...", "english_meaning": "...", "coach_line_english": "...", "is_extension": false}
-Set "is_extension" to true only when the phrase extends a previous one.`;
+{"spanish_phrase": "...", "english_meaning": "...", "coach_line_english": "...", "is_extension": false, "words": [{"word": "...", "meaning": "..."}]}
+Set "is_extension" to true only when the phrase extends a previous one.
+"words" breaks spanish_phrase down word-by-word (in order, one entry per word as it appears in the phrase) with a short 1-3 word English gloss for each — this feeds the user's personal dictionary, so it must cover every word in spanish_phrase.`;
 
 export interface ChatMessage {
   role: 'user' | 'assistant';

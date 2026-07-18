@@ -43,10 +43,10 @@ export default function Home() {
         {phraseCount > 0 && (
           <Pressable
             style={({pressed}) => [styles.secondary, pressed && styles.ctaPressed]}
-            onPress={() => router.push('/phrases')}
+            onPress={() => router.push('/profile')}
           >
             <Text style={styles.secondaryText}>
-              Mis frases <Text style={styles.secondaryCount}>· {phraseCount}</Text>
+              Mi progreso <Text style={styles.secondaryCount}>· {phraseCount}</Text>
             </Text>
           </Pressable>
         )}

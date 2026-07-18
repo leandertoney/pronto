@@ -4,11 +4,17 @@
  * and surrounding prose just in case, and validate the shape.
  */
 
+export interface WordGloss {
+  word: string; // Spanish word, as it appears in spanish_phrase
+  meaning: string; // short English gloss (1-3 words)
+}
+
 export interface TutorReply {
   spanish_phrase: string;
   english_meaning: string;
   coach_line_english: string;
   is_extension: boolean;
+  words: WordGloss[];
 }
 
 /** Strip ```json fences and any text outside the outermost JSON object. */
@@ -53,5 +59,26 @@ export function parseTutorReply(raw: string): TutorReply {
     english_meaning: obj.english_meaning,
     coach_line_english: obj.coach_line_english,
     is_extension: obj.is_extension === true,
+    words: parseWords(obj.words),
   };
+}
+
+/** Defensive parse of the per-word gloss array — any malformed entry is dropped rather than failing the whole reply. */
+function parseWords(raw: unknown): WordGloss[] {
+  if (!Array.isArray(raw)) return [];
+  const words: WordGloss[] = [];
+  for (const entry of raw) {
+    if (
+      entry &&
+      typeof entry === 'object' &&
+      typeof (entry as Record<string, unknown>).word === 'string' &&
+      typeof (entry as Record<string, unknown>).meaning === 'string'
+    ) {
+      const {word, meaning} = entry as Record<string, string>;
+      if (word.trim() && meaning.trim()) {
+        words.push({word: word.trim(), meaning: meaning.trim()});
+      }
+    }
+  }
+  return words;
 }

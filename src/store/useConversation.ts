@@ -5,6 +5,8 @@ import {speakEnglish, speakSpanish} from '../services/tts';
 import {transcribe} from '../services/whisper';
 import {savePhrase, loadPhrases} from '../lib/phraseStore';
 import {diffWords, scoreAttempt, tierForScore, WordHit} from '../lib/similarity';
+import {recordWords} from '../lib/wordStore';
+import {TutorReply} from '../lib/claudeJson';
 
 /**
  * The core loop as a state machine:
@@ -47,11 +49,14 @@ interface ConversationState {
   retries: number;
   learnedCount: number;
   error: string | null;
+  hasTaughtNextCommands: boolean;
+  preRecordPhase: Phase | null;
 
   startSession: () => Promise<void>;
   setRecording: () => void;
   cancelRecording: () => void;
   handleEnglishRecording: (uri: string) => Promise<void>;
+  handleEnglishText: (english: string) => Promise<void>;
   handleRepeatRecording: (uri: string) => Promise<void>;
   chooseNext: (choice: NextChoice) => Promise<void>;
   replayTarget: (slow: boolean) => Promise<void>;
@@ -66,6 +71,9 @@ const GREETING_ES = '¿Qué onda?';
 const GREETING_EN = 'What are you doing right now?';
 const NEW_TOPIC_ES = '¡Muy bien! ¿Qué más?';
 const NEW_TOPIC_EN = "What else are you up to?";
+const NEXT_COMMANDS_TEACH_EN =
+  'Quick tip: from here you can just talk to me. Say "continúa" to build on this, or "progreso" to see how you\'re doing.';
+const NEXT_COMMANDS_TEACH_ES = 'Continúa. Progreso.';
 
 /** Varied celebration lines so a perfect score never sounds canned. */
 const PERFECT_LINES = [
@@ -80,6 +88,16 @@ function pickPerfectLine(): string {
   return PERFECT_LINES[Math.floor(Math.random() * PERFECT_LINES.length)];
 }
 
+/** Feed a fresh phrase's per-word glosses into the personal dictionary. Best-effort — a storage hiccup shouldn't break the conversation. */
+async function recordReplyWords(reply: TutorReply): Promise<void> {
+  if (reply.words.length === 0) return;
+  try {
+    await recordWords(reply.words, Date.now());
+  } catch {
+    // Dictionary is a nice-to-have; conversation flow must not break on it.
+  }
+}
+
 export const useConversation = create<ConversationState>((set, get) => ({
   phase: 'idle',
   transcript: [],
@@ -88,6 +106,8 @@ export const useConversation = create<ConversationState>((set, get) => ({
   retries: 0,
   learnedCount: 0,
   error: null,
+  hasTaughtNextCommands: false,
+  preRecordPhase: null,
 
   startSession: async () => {
     const existing = await loadPhrases();
@@ -107,15 +127,18 @@ export const useConversation = create<ConversationState>((set, get) => ({
     set({phase: 'awaiting-english'});
   },
 
-  setRecording: () => set({phase: 'recording', error: null}),
+  // Stash the phase we were in before recording started — cancelRecording
+  // needs it to know where to return, since by the time it runs the store's
+  // `phase` has already been overwritten to 'recording' and can no longer
+  // tell "choosing" apart from "awaiting-repeat"/"awaiting-english".
+  setRecording: () =>
+    set((s) => ({phase: 'recording', preRecordPhase: s.phase, error: null})),
 
   cancelRecording: () => {
-    const {phase, currentTarget} = get();
-    if (phase === 'choosing') {
-      set({phase: 'choosing'});
-    } else {
-      set({phase: currentTarget ? 'awaiting-repeat' : 'awaiting-english'});
-    }
+    const {preRecordPhase, currentTarget} = get();
+    const returnTo =
+      preRecordPhase ?? (currentTarget ? 'awaiting-repeat' : 'awaiting-english');
+    set({phase: returnTo, preRecordPhase: null});
   },
 
   handleEnglishRecording: async (uri: string) => {
@@ -129,7 +152,20 @@ export const useConversation = create<ConversationState>((set, get) => ({
         });
         return;
       }
+      await get().handleEnglishText(english);
+    } catch (e) {
+      set({
+        phase: 'awaiting-english',
+        error: e instanceof Error ? e.message : 'Something went wrong — try again.',
+      });
+    }
+  },
 
+  // Shared with the "choosing" spoken-command path, which already has a
+  // transcript from its own command-recognition pass — this skips a second,
+  // redundant Whisper call on the same audio clip.
+  handleEnglishText: async (english: string) => {
+    try {
       set((s) => ({
         transcript: [
           ...s.transcript,
@@ -143,6 +179,7 @@ export const useConversation = create<ConversationState>((set, get) => ({
         {role: 'user', content: `I'm doing this right now: "${english}". Teach me to say it in Spanish.`},
       ];
       const reply = await getTutorReply(history);
+      await recordReplyWords(reply);
 
       set((s) => ({
         claudeHistory: [
@@ -231,6 +268,13 @@ export const useConversation = create<ConversationState>((set, get) => ({
         set((s) => ({learnedCount: s.learnedCount + 1}));
 
         await speakEnglish(feedback);
+
+        if (!get().hasTaughtNextCommands) {
+          set({hasTaughtNextCommands: true});
+          await speakEnglish(NEXT_COMMANDS_TEACH_EN);
+          await speakSpanish(NEXT_COMMANDS_TEACH_ES);
+        }
+
         set({phase: 'choosing'});
       } else if (tier === 'close') {
         set({retries: retries + 1, phase: 'speaking'});
@@ -285,6 +329,7 @@ export const useConversation = create<ConversationState>((set, get) => ({
         },
       ];
       const reply = await getTutorReply(history);
+      await recordReplyWords(reply);
 
       set((s) => ({
         claudeHistory: [
