@@ -14,18 +14,31 @@ import {openAiKey} from './env';
  * The SAME voice (nova) is used for both Spanish phrases and English coaching
  * lines so the app has one consistent voice throughout — only the spoken
  * accent differs, steered per-language via the `instructions` field.
+ *
+ * The cache key includes VOICE_PROFILE_VERSION, bumped whenever INSTRUCTIONS
+ * changes — otherwise a wording tweak would never take effect for phrases
+ * already cached under the old wording.
  */
 
 const TTS_URL = 'https://api.openai.com/v1/audio/speech';
 const MODEL = 'gpt-4o-mini-tts';
 const VOICE = 'nova'; // warm younger woman — used for every spoken line
 const CACHE_DIRNAME = 'tts-cache';
+// Bump whenever INSTRUCTIONS changes wording — the cache key includes this,
+// so old audio (recorded under the previous instructions) is automatically
+// orphaned instead of being served stale forever.
+const VOICE_PROFILE_VERSION = 2;
 
 export type TtsLang = 'es' | 'en';
 
+// Anchored as ONE bilingual woman switching languages, not two separate
+// character descriptions — independent descriptions can drift far enough in
+// pitch/pacing that nova stops sounding like the same person across languages.
+const VOICE_ANCHOR =
+  'You are the same warm, upbeat young bilingual woman throughout — same voice, same energy, same relaxed pacing, whether you are speaking English or Spanish.';
 const INSTRUCTIONS: Record<TtsLang, string> = {
-  es: 'Speak in warm, natural Latin American Spanish, like a friendly Colombian woman. Clear and unhurried.',
-  en: 'Speak in warm, natural, friendly American English, like an encouraging language buddy. Upbeat but relaxed.',
+  es: `${VOICE_ANCHOR} Right now speak in natural Latin American Spanish (Colombian accent). Clear and unhurried.`,
+  en: `${VOICE_ANCHOR} Right now speak in natural American English, like an encouraging language buddy.`,
 };
 
 /**
@@ -36,6 +49,7 @@ export function cacheFileName(
   text: string,
   lang: TtsLang = 'es',
   voice: string = VOICE,
+  profileVersion: number = VOICE_PROFILE_VERSION,
 ): string {
   const normalized = text.trim().toLowerCase();
   let hash = 5381;
@@ -43,7 +57,7 @@ export function cacheFileName(
     hash = (hash * 33) ^ normalized.charCodeAt(i);
   }
   const unsigned = hash >>> 0;
-  return `${voice}-${lang}-${unsigned.toString(36)}.mp3`;
+  return `${voice}-v${profileVersion}-${lang}-${unsigned.toString(36)}.mp3`;
 }
 
 function cacheDir(): Directory {

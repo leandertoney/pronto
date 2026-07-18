@@ -99,8 +99,11 @@ async function speakNova(text: string, lang: TtsLang, slow: boolean): Promise<vo
   try {
     const uri = await getAudioUri(text, lang);
     await playFile(uri, slow ? SPANISH_SLOW_RATE : 1.0);
-  } catch {
+  } catch (e) {
     // Network/API/playback failure — fall back to the free device voice.
+    // Logged because this fallback sounds like a different woman entirely,
+    // and it would otherwise fail silently mid-conversation.
+    console.warn(`[tts] nova failed for "${text}" (${lang}), falling back to device voice:`, e);
     await speakDeviceLang(text, lang, slow);
   }
 }

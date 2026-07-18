@@ -39,6 +39,14 @@ Whisper hallucinates YouTube-caption boilerplate ("thanks for watching", "gracia
 - **VAD hardening** in the conversation screen: only transcribe when sustained speech was actually detected (`heardSpeech`) AND the clip is ≥700ms; the auto-listen start is delayed 550ms so the mic doesn't catch the tail of the app's own TTS (which would feed Whisper garbage). Together these keep silent clips out of Whisper entirely, with the phrase filter as the backstop.
 - **Audio session juggling**: `allowsRecording` is enabled only while actually recording and disabled right after stopping, so TTS playback comes out of the main speaker at full volume (iOS routes audio to the quiet earpiece when a recording session is active).
 
+## Spanish/English voice mismatch (2026-07-18)
+
+Leander heard the Spanish and English voices as two different women, despite both routing through OpenAI `nova`. Two contributing causes, both fixed:
+
+- **Silent fallback wasn't logged.** `speakNova` in `tts.ts` catches any TTS API/network/playback failure and silently falls back to the free robotic device voice — with zero logging, so a failed call for one language would swap in a completely different-sounding voice mid-conversation without any visible sign why. Added a `console.warn` on that path so it shows up in the Metro terminal if it happens again.
+- **The per-language `instructions` text described two different characters instead of one.** "A friendly Colombian woman" (es) vs. "an encouraging language buddy" (en) are different enough character descriptions that `gpt-4o-mini-tts` can drift pitch/pacing/energy across them even under the same `voice` param. Rewrote both to share a `VOICE_ANCHOR` sentence ("You are the same warm, upbeat young bilingual woman throughout...") with only the accent instruction varying per language.
+- **Cache invalidation for instruction changes.** The on-device MP3 cache is keyed by text+lang+voice, which doesn't know when the `instructions` wording changes — old cached audio (recorded under the old instructions) would keep playing forever otherwise. Added `VOICE_PROFILE_VERSION` (bumped to 2 with this change) into the cache filename, so any future instructions tweak auto-invalidates by orphaning old files rather than needing a manual cache clear. Old v1 files are just harmless dead weight in the cache dir.
+
 ## Conversational feel tuning + choosing-phase regression fix (2026-07-18)
 
 Leander wanted the app to feel like a live conversation (listen continuously, respond the instant he stops talking) instead of a record → transcribe → reply cycle. True streaming STT (partial transcripts while speaking, no separate upload step) needs either a native speech module or raw-PCM streaming to a service like Deepgram — both require leaving Expo Go for a development build. He chose to stay in Expo Go for now and tune the existing VAD-based flow instead:

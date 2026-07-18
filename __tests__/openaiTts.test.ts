@@ -21,13 +21,20 @@ describe('cacheFileName', () => {
 
   it('encodes the voice and language in the filename and ends in .mp3', () => {
     const name = cacheFileName('hola', 'es', 'nova');
-    expect(name.startsWith('nova-es-')).toBe(true);
+    expect(name.startsWith('nova-')).toBe(true);
+    expect(name).toContain('-es-');
     expect(name.endsWith('.mp3')).toBe(true);
   });
 
   it('varies by voice', () => {
     expect(cacheFileName('hola', 'es', 'nova')).not.toBe(
       cacheFileName('hola', 'es', 'shimmer'),
+    );
+  });
+
+  it('varies by voice profile version, orphaning stale audio after an instructions change', () => {
+    expect(cacheFileName('hola', 'es', 'nova', 1)).not.toBe(
+      cacheFileName('hola', 'es', 'nova', 2),
     );
   });
 
