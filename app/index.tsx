@@ -7,7 +7,7 @@ import {AppText} from '../src/components/AppText';
 import {OutlineButton} from '../src/components/OutlineButton';
 import {PrimaryButton} from '../src/components/PrimaryButton';
 import {ZocaloMark} from '../src/components/ZocaloMark';
-import {APP_NAME_SPLIT, APP_SUBTITLE, APP_TAGLINE} from '../src/constants/brand';
+import {APP_NAME, APP_SUBTITLE, APP_TAGLINE} from '../src/constants/brand';
 import {loadPhrases} from '../src/lib/phraseStore';
 import {colors} from '../src/theme';
 
@@ -29,10 +29,7 @@ export default function Home() {
 
         <View style={styles.wordmarkRow}>
           <AppText variant="title" style={styles.wordmark}>
-            {APP_NAME_SPLIT.first}
-            <AppText variant="title" color={colors.accent} style={styles.wordmark}>
-              {APP_NAME_SPLIT.accent}
-            </AppText>
+            {APP_NAME}
           </AppText>
           <AppText variant="caption" color={colors.textSecondary} style={styles.subtitleTag}>
             {APP_SUBTITLE.toUpperCase()}
