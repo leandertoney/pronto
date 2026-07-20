@@ -115,3 +115,17 @@ export async function speakSpanish(text: string, slow = false): Promise<void> {
 export async function speakEnglish(text: string): Promise<void> {
   await speakNova(text, 'en', false);
 }
+
+/**
+ * Fire-and-forget: warm the TTS cache for a line without playing it. Callers
+ * use this to start fetching the SECOND line's audio while the FIRST line is
+ * still playing, so by the time speakEnglish/speakSpanish actually runs for
+ * it, it's often already a cache hit. Never throws or blocks the caller —
+ * a failed prefetch just means that line falls through to its own normal
+ * fetch (and device-voice fallback) when it's actually spoken.
+ */
+export function prefetchAudio(text: string, lang: TtsLang): void {
+  getAudioUri(text, lang).catch(() => {
+    // Best-effort only — the real speak call still has its own fallback.
+  });
+}

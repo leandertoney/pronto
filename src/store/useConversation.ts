@@ -2,7 +2,7 @@ import {create} from 'zustand';
 
 import {ChatMessage, getTutorReply} from '../services/claude';
 import {persistAttemptAudio} from '../services/attemptAudio';
-import {speakEnglish, speakSpanish} from '../services/tts';
+import {prefetchAudio, speakEnglish, speakSpanish} from '../services/tts';
 import {transcribe} from '../services/whisper';
 import {savePhrase, loadPhrases} from '../lib/phraseStore';
 import {diffWords, scoreAttempt, tierForScore, WordHit} from '../lib/similarity';
@@ -243,7 +243,11 @@ export const useConversation = create<ConversationState>((set, get) => ({
         phase: 'speaking',
       }));
 
-      // She says the phrase FIRST, then invites you to say it.
+      // She says the phrase FIRST, then invites you to say it. Both lines
+      // are brand-new text (never cached before), so start fetching the
+      // coach line's audio now instead of waiting for the Spanish phrase to
+      // finish playing before even starting that fetch.
+      prefetchAudio(reply.coach_line_english, 'en');
       await speakSpanish(reply.spanish_phrase);
       await speakEnglish(reply.coach_line_english);
       set({phase: 'awaiting-repeat'});
@@ -424,7 +428,10 @@ export const useConversation = create<ConversationState>((set, get) => ({
         phase: 'speaking',
       }));
 
-      // Phrase first, then the invitation to say it.
+      // Phrase first, then the invitation to say it. Both lines are
+      // brand-new text, so warm the coach line's cache while the Spanish
+      // phrase is still playing instead of fetching it afterward.
+      prefetchAudio(reply.coach_line_english, 'en');
       await speakSpanish(reply.spanish_phrase);
       await speakEnglish(reply.coach_line_english);
       set({phase: 'awaiting-repeat'});
