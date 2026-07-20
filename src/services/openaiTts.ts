@@ -76,9 +76,11 @@ export async function getAudioUri(text: string, lang: TtsLang): Promise<string> 
   const file = new File(cacheDir(), cacheFileName(text, lang));
 
   if (file.exists) {
+    console.log(`[latency] tts cache hit (${lang}): "${text.slice(0, 30)}"`);
     return file.uri;
   }
 
+  const start = Date.now();
   const res = await fetch(TTS_URL, {
     method: 'POST',
     headers: {
@@ -101,5 +103,6 @@ export async function getAudioUri(text: string, lang: TtsLang): Promise<string> 
 
   const bytes = new Uint8Array(await res.arrayBuffer());
   file.write(bytes);
+  console.log(`[latency] tts fetch (${lang}): ${Date.now() - start}ms for "${text.slice(0, 30)}"`);
   return file.uri;
 }

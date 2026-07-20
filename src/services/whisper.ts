@@ -32,6 +32,7 @@ export async function transcribe(
   form.append('response_format', 'json');
   form.append('temperature', '0');
 
+  const start = Date.now();
   const res = await fetch(WHISPER_URL, {
     method: 'POST',
     headers: {Authorization: `Bearer ${openAiKey()}`},
@@ -44,6 +45,7 @@ export async function transcribe(
   }
 
   const data = (await res.json()) as {text?: string};
+  console.log(`[latency] whisper transcribe (${language}): ${Date.now() - start}ms`);
   const text = (data.text ?? '').trim();
   return isHallucinatedTranscript(text) ? '' : text;
 }

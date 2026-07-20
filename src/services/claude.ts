@@ -39,6 +39,7 @@ export interface ChatMessage {
 }
 
 async function callClaude(history: ChatMessage[]): Promise<string> {
+  const start = Date.now();
   const res = await fetch(CLAUDE_URL, {
     method: 'POST',
     headers: {
@@ -63,6 +64,7 @@ async function callClaude(history: ChatMessage[]): Promise<string> {
   const data = (await res.json()) as {
     content?: Array<{type: string; text?: string}>;
   };
+  console.log(`[latency] claude reply: ${Date.now() - start}ms`);
   const text = data.content
     ?.filter((b) => b.type === 'text' && typeof b.text === 'string')
     .map((b) => b.text)
