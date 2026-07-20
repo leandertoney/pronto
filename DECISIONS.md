@@ -175,3 +175,21 @@ The MVP saved learned phrases to AsyncStorage but had no way to see them. Now th
 ## Explicitly skipped (per the brief)
 
 Accounts, onboarding beyond the mic ask, gamification, settings, backend/proxy, Android polish, offline dictionary.
+
+## Hear yourself: playing back your own recording (2026-07-20)
+
+Leander asked to be able to hear his own recorded attempt played back, citing a specific example ("I am talking on the phone with my amigo Chris") that was **English input**, not a Spanish repeat attempt.
+
+**The recorder reuses one file path.** `useAudioRecorder` creates a single long-lived `AudioRecorder` instance per screen mount; `expo-audio`'s native side (`AudioUtils.createRecorder`/`createRecordingUrl`) picks the file's UUID-based name once, at construction, not per-recording. So every `recorder.record()` call on the same screen instance writes to the same file, and the next recording overwrites whatever was there. Confirmed by reading `node_modules/expo-audio/ios/AudioUtils.swift` and `AudioModule.swift` directly rather than assuming. This means any "hear it back" feature has to copy the clip out to a stable, uniquely-named file immediately after each recording, or it will be silently clobbered by the very next thing the user says.
+
+**New `src/services/attemptAudio.ts`**: `persistAttemptAudio(sourceUri, entryId)` copies the recorder's current file into `Paths.cache/attempt-audio/<entryId>.m4a` using `expo-file-system`'s synchronous `File.copy()`. Both `handleEnglishRecording` and `handleRepeatRecording` in `useConversation.ts` now call this right after transcription succeeds, and attach the resulting URI to the relevant `TranscriptEntry` as `attemptAudioUri` (on `user-english` entries for English input, and on both `user-attempt` and the following `score` entry for a Spanish repeat, since the score card already surfaces per-word "why" detail in the same place). Playback reuses `tts.ts`'s existing `playFile` helper (now exported) rather than duplicating `createAudioPlayer` boilerplate.
+
+**A "Hear yourself" pill** appears on the `user-english` bubble and on the `score` card in `conversation.tsx`, matching the existing `replayPill`/Ionicons style. `user-attempt` bubbles don't get their own button since the score card right below already offers one for the same clip, avoiding a duplicate control for a single recording.
+
+**Known limitation, told to Leander directly**: this only captures recordings made after this change shipped. The specific "amigo Chris" clip he asked about was already gone (overwritten before this code existed) by the time this was built — nothing retroactively recovers it. He'll need to record a fresh utterance to test the feature.
+
+**Left alone, flagged not fixed**: `attempt-audio/` grows unboundedly on-device (one file per English/Spanish recording, forever). Not cleaned up this round since it wasn't asked for and doesn't block the feature; worth a TTL or a cap tied to transcript/session length if it becomes a real storage concern.
+
+**Failure mode made visible, not silent**: `persistAttemptAudio`'s failure path now `console.warn`s (matching how `tts.ts`'s `speakNova` logs its device-voice fallback) instead of swallowing the error, since a silent catch here would make "the button just doesn't show up" undebuggable during on-device testing.
+
+Separate from, and unrelated to, the UI overhaul v2 work above — a distinct feature request, not a redesign-scope item, and does not change anything documented in that section (its "zero changes to useConversation.ts" claim is accurate as of `c8d4742`; this is a later, distinct edit to that file).

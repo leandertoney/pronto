@@ -48,7 +48,7 @@ function speakDevice(text: string, options: Speech.SpeechOptions): Promise<void>
 }
 
 /** Play a local audio file to completion at the given rate. */
-function playFile(uri: string, rate: number): Promise<void> {
+export function playFile(uri: string, rate: number): Promise<void> {
   return new Promise((resolve) => {
     const player = createAudioPlayer(uri);
     let settled = false;

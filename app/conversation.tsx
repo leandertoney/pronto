@@ -26,6 +26,7 @@ import {ListenBars, ListenBarsState} from '../src/components/ListenBars';
 import {ScoreRing} from '../src/components/ScoreRing';
 import {ScreenHeader} from '../src/components/ScreenHeader';
 import {recognizeCommand} from '../src/lib/nextCommand';
+import {playFile} from '../src/services/tts';
 import {transcribe} from '../src/services/whisper';
 import {colors} from '../src/theme';
 import {
@@ -420,12 +421,23 @@ function TranscriptRow({
         </View>
       );
     case 'user-english':
-    case 'user-attempt':
       // Translations appear on what the app teaches, never on what the user
       // says (ui-redesign-prompt-v2.md §5): the spanish card that follows an
-      // English utterance already delivers the translation, and the why box
-      // already covers what was heard for a Spanish attempt, so duplicating
-      // either here would kill the reveal.
+      // English utterance already delivers the translation, so duplicating
+      // it here would kill the reveal. The "hear yourself" button lives here
+      // because this kind never leads to a score entry of its own.
+      return (
+        <View style={[styles.bubble, styles.userBubble]}>
+          <AppText variant="body">{entry.text}</AppText>
+          {entry.attemptAudioUri ? (
+            <HearYourselfButton uri={entry.attemptAudioUri} />
+          ) : null}
+        </View>
+      );
+    case 'user-attempt':
+      // The why box on the score entry that follows already covers what was
+      // heard for a Spanish attempt, and offers its own "hear yourself"
+      // button — no need to duplicate either here.
       return (
         <View style={[styles.bubble, styles.userBubble]}>
           <AppText variant="body">{entry.text}</AppText>
@@ -527,8 +539,37 @@ function ScoreRow({entry}: {entry: TranscriptEntry}) {
             </AppText>
           </View>
         )}
+        {entry.attemptAudioUri ? (
+          <HearYourselfButton uri={entry.attemptAudioUri} />
+        ) : null}
       </Card>
     </Animated.View>
+  );
+}
+
+function HearYourselfButton({uri}: {uri: string}) {
+  const [playing, setPlaying] = useState(false);
+
+  const play = useCallback(async () => {
+    if (playing) return;
+    setPlaying(true);
+    try {
+      await playFile(uri, 1.0);
+    } finally {
+      setPlaying(false);
+    }
+  }, [playing, uri]);
+
+  return (
+    <Pressable
+      style={({pressed}) => [styles.hearSelfPill, (pressed || playing) && styles.hearSelfPillActive]}
+      onPress={play}
+    >
+      <Ionicons name="person-circle-outline" size={14} color={colors.spanishText} />
+      <AppText variant="caption" color={colors.spanishText}>
+        Hear yourself
+      </AppText>
+    </Pressable>
   );
 }
 
@@ -809,6 +850,22 @@ const styles = StyleSheet.create({
   },
   whyHeard: {
     marginTop: 8,
+  },
+  hearSelfPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 5,
+    marginTop: 10,
+    backgroundColor: colors.spanishBubble,
+    borderWidth: 1,
+    borderColor: colors.spanishBorder,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  hearSelfPillActive: {
+    opacity: 0.75,
   },
   nextCard: {
     marginTop: 2,

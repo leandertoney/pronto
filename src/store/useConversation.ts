@@ -1,6 +1,7 @@
 import {create} from 'zustand';
 
 import {ChatMessage, getTutorReply} from '../services/claude';
+import {persistAttemptAudio} from '../services/attemptAudio';
 import {speakEnglish, speakSpanish} from '../services/tts';
 import {transcribe} from '../services/whisper';
 import {savePhrase, loadPhrases} from '../lib/phraseStore';
@@ -40,6 +41,7 @@ export interface TranscriptEntry {
   score?: number;
   heard?: string; // what Whisper transcribed from the attempt
   targetWords?: WordHit[]; // per-word hit/miss vs the target phrase
+  attemptAudioUri?: string; // the user's own recorded repeat, so they can hear themselves back
 }
 
 interface ConversationState {
@@ -57,7 +59,7 @@ interface ConversationState {
   setRecording: () => void;
   cancelRecording: () => void;
   handleEnglishRecording: (uri: string) => Promise<void>;
-  handleEnglishText: (english: string) => Promise<void>;
+  handleEnglishText: (english: string, attemptAudioUri?: string) => Promise<void>;
   handleRepeatRecording: (uri: string) => Promise<void>;
   chooseNext: (choice: NextChoice) => Promise<void>;
   replayTarget: (slow: boolean) => Promise<void>;
@@ -173,7 +175,14 @@ export const useConversation = create<ConversationState>((set, get) => ({
         });
         return;
       }
-      await get().handleEnglishText(english);
+      // The recorder reuses one file path across recordings, so this has to
+      // be copied out to a stable location now, before the next recording
+      // (e.g. the Spanish repeat) overwrites it.
+      const attemptAudioUri = await persistAttemptAudio(uri, nextId()).catch((e) => {
+        console.warn('[attemptAudio] failed to persist English recording:', e);
+        return undefined;
+      });
+      await get().handleEnglishText(english, attemptAudioUri);
     } catch (e) {
       set({
         phase: 'awaiting-english',
@@ -185,13 +194,13 @@ export const useConversation = create<ConversationState>((set, get) => ({
   // Shared with the "choosing" spoken-command path, which already has a
   // transcript from its own command-recognition pass — this skips a second,
   // redundant Whisper call on the same audio clip.
-  handleEnglishText: async (english: string) => {
+  handleEnglishText: async (english: string, attemptAudioUri?: string) => {
     try {
       const userEntryId = nextId();
       set((s) => ({
         transcript: [
           ...s.transcript,
-          {id: userEntryId, kind: 'user-english', text: english},
+          {id: userEntryId, kind: 'user-english', text: english, attemptAudioUri},
         ],
         phase: 'thinking',
       }));
@@ -254,6 +263,17 @@ export const useConversation = create<ConversationState>((set, get) => ({
       set({phase: 'transcribing'});
       const attempt = await transcribe(uri, 'es');
 
+      // The recorder is a single long-lived instance that reuses one file
+      // path, so the next recording would overwrite this clip. Copy it out
+      // to a stable file now so the user can still hear it back later, even
+      // after they've moved on to the next phrase.
+      const attemptAudioUri = attempt
+        ? await persistAttemptAudio(uri, nextId()).catch((e) => {
+            console.warn('[attemptAudio] failed to persist Spanish attempt:', e);
+            return undefined;
+          })
+        : undefined;
+
       set((s) => ({
         transcript: attempt
           ? [
@@ -265,6 +285,7 @@ export const useConversation = create<ConversationState>((set, get) => ({
                 // The meaning they were aiming for, not a literal translation
                 // of what Whisper heard — useful even when the attempt misses.
                 englishMeaning: target.english,
+                attemptAudioUri,
               },
             ]
           : s.transcript,
@@ -290,6 +311,7 @@ export const useConversation = create<ConversationState>((set, get) => ({
             score,
             heard: attempt || undefined,
             targetWords: words,
+            attemptAudioUri,
           },
         ],
       }));
