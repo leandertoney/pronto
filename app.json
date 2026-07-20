@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Qué Onda",
+    "name": "Pronto",
     "slug": "que-onda",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -37,7 +37,8 @@
           "microphonePermission": "Qué Onda listens to you speak so it can teach you Spanish phrases for what you're doing right now."
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      "expo-font"
     ]
   }
 }

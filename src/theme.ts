@@ -24,9 +24,46 @@ export const colors = {
   scoreLow: '#D93A2B',
 } as const;
 
+/**
+ * Bricolage Grotesque for display/title/button (personality, the Spanish
+ * phrase face), Instrument Sans for body/caption (readable, quiet). Loaded
+ * via @expo-google-fonts in app/_layout.tsx; PostScript names below must
+ * match the font family names those packages register.
+ */
 export const fonts = {
-  display: {fontSize: 34, fontWeight: '700' as const, letterSpacing: -0.5},
-  title: {fontSize: 22, fontWeight: '600' as const},
-  body: {fontSize: 17, fontWeight: '400' as const},
-  caption: {fontSize: 13, fontWeight: '500' as const},
+  display: {
+    fontFamily: 'BricolageGrotesque_800ExtraBold',
+    fontSize: 36,
+    letterSpacing: -0.8,
+  },
+  title: {
+    fontFamily: 'BricolageGrotesque_700Bold',
+    fontSize: 20,
+  },
+  body: {
+    fontFamily: 'InstrumentSans_400Regular',
+    fontSize: 16,
+  },
+  caption: {
+    fontFamily: 'InstrumentSans_500Medium',
+    fontSize: 13,
+  },
+  button: {
+    fontFamily: 'BricolageGrotesque_700Bold',
+    fontSize: 16,
+  },
+  // Custom fonts don't reliably synthesize italics from fontStyle on native,
+  // so the italic bilingual-subtitle style (used throughout) gets its own
+  // real italic font family instead of `caption` + fontStyle: 'italic'.
+  captionItalic: {
+    fontFamily: 'InstrumentSans_500Medium_Italic',
+    fontSize: 13,
+  },
+  // Not in the original 5-variant spec; added for the one bolded body
+  // phrase in the Home tagline ("Spanish for right now.") since fontWeight
+  // has no effect on a custom fontFamily and there's no other bold body use.
+  bodyBold: {
+    fontFamily: 'InstrumentSans_700Bold',
+    fontSize: 16,
+  },
 };

@@ -1,3 +1,4 @@
+import {Ionicons} from '@expo/vector-icons';
 import {useRouter} from 'expo-router';
 import {useCallback, useEffect, useRef, useState} from 'react';
 import {
@@ -5,7 +6,6 @@ import {
   FlatList,
   Pressable,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
@@ -20,9 +20,14 @@ import {
   exitRecordingMode,
   requestMicPermission,
 } from '../src/services/audioSession';
+import {AppText} from '../src/components/AppText';
+import {Card} from '../src/components/Card';
+import {ListenBars, ListenBarsState} from '../src/components/ListenBars';
+import {ScoreRing} from '../src/components/ScoreRing';
+import {ScreenHeader} from '../src/components/ScreenHeader';
 import {recognizeCommand} from '../src/lib/nextCommand';
 import {transcribe} from '../src/services/whisper';
-import {colors, fonts} from '../src/theme';
+import {colors} from '../src/theme';
 import {
   NextChoice,
   Phase,
@@ -319,14 +324,21 @@ export default function Conversation() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.permissionBox}>
-          <Text style={styles.permissionTitle}>We need your voice 🎙️</Text>
-          <Text style={styles.permissionBody}>
-            Qué Onda is a speaking app, without the microphone there's nothing
+          <View style={styles.permissionIconCircle}>
+            <Ionicons name="mic-outline" size={30} color={colors.accent} />
+          </View>
+          <AppText variant="title" style={styles.permissionTitle}>
+            We need your voice
+          </AppText>
+          <AppText variant="body" color={colors.textSecondary} style={styles.permissionBody}>
+            Pronto is a speaking app, without the microphone there's nothing
             to practice. Enable microphone access for Expo Go in Settings, then
             come back and we'll pick it right up.
-          </Text>
+          </AppText>
           <Pressable style={styles.permissionButton} onPress={() => router.back()}>
-            <Text style={styles.permissionButtonText}>Back to Home</Text>
+            <AppText variant="button" color={colors.accent}>
+              Back to Home
+            </AppText>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -335,17 +347,24 @@ export default function Conversation() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <Text style={styles.headerBack}>‹</Text>
-        </Pressable>
-        <Text style={styles.headerTitle}>qué onda</Text>
-        <Pressable onPress={() => setAutoListen((v) => !v)} hitSlop={8}>
-          <Text style={[styles.autoToggle, !autoListen && styles.autoToggleOff]}>
-            {autoListen ? 'auto 🎙️' : 'tap 🎙️'}
-          </Text>
-        </Pressable>
-      </View>
+      <ScreenHeader
+        title="Right now"
+        onBack={() => router.back()}
+        right={
+          <Pressable style={styles.modePill} onPress={() => setAutoListen((v) => !v)} hitSlop={8}>
+            <View style={[styles.modeSeg, autoListen && styles.modeSegOn]}>
+              <AppText variant="caption" color={autoListen ? colors.textOnAccent : colors.textSecondary} style={styles.modeText}>
+                auto
+              </AppText>
+            </View>
+            <View style={[styles.modeSeg, !autoListen && styles.modeSegOn]}>
+              <AppText variant="caption" color={!autoListen ? colors.textOnAccent : colors.textSecondary} style={styles.modeText}>
+                tap
+              </AppText>
+            </View>
+          </Pressable>
+        }
+      />
 
       <FlatList
         ref={listRef}
@@ -357,13 +376,19 @@ export default function Conversation() {
         contentContainerStyle={styles.listContent}
       />
 
-      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      {error ? (
+        <View style={styles.errorBanner}>
+          <AppText variant="caption" color={colors.danger}>
+            {error}
+          </AppText>
+        </View>
+      ) : null}
 
       {choosingActive && (
         <NextChips onChoose={onChipChoice} onProgress={onChipProgress} />
       )}
 
-      <MicButton
+      <MicZone
         phase={phase}
         autoListen={autoListen}
         disabled={!canUseMic && !isRecording}
@@ -384,38 +409,51 @@ function TranscriptRow({
     case 'coach':
       return (
         <View style={styles.coachBlock}>
-          <Text style={styles.coachLine}>{entry.text}</Text>
+          <AppText variant="body" color={colors.textSecondary}>
+            {entry.text}
+          </AppText>
           {entry.spanishTranslation ? (
-            <Text style={styles.coachTranslation}>{entry.spanishTranslation}</Text>
+            <AppText variant="captionItalic" color={colors.turquoise} style={styles.esSub}>
+              {entry.spanishTranslation}
+            </AppText>
           ) : null}
         </View>
       );
     case 'user-english':
     case 'user-attempt':
+      // Translations appear on what the app teaches, never on what the user
+      // says (ui-redesign-prompt-v2.md §5): the spanish card that follows an
+      // English utterance already delivers the translation, and the why box
+      // already covers what was heard for a Spanish attempt, so duplicating
+      // either here would kill the reveal.
       return (
         <View style={[styles.bubble, styles.userBubble]}>
-          <Text style={styles.userText}>{entry.text}</Text>
-          {entry.kind === 'user-english' && entry.spanishTranslation ? (
-            <Text style={styles.userTranslation}>{entry.spanishTranslation}</Text>
-          ) : null}
-          {entry.kind === 'user-attempt' && entry.englishMeaning ? (
-            <Text style={styles.userTranslation}>{entry.englishMeaning}</Text>
-          ) : null}
+          <AppText variant="body">{entry.text}</AppText>
         </View>
       );
     case 'spanish':
       return (
         <View style={[styles.bubble, styles.spanishBubble]}>
-          <Text style={styles.spanishText}>{entry.text}</Text>
+          <AppText variant="title" color={colors.spanishText}>
+            {entry.text}
+          </AppText>
           {entry.englishMeaning ? (
-            <Text style={styles.meaningText}>{entry.englishMeaning}</Text>
+            <AppText variant="caption" color={colors.textSecondary} style={styles.meaningText}>
+              {entry.englishMeaning}
+            </AppText>
           ) : null}
           <View style={styles.replayRow}>
-            <Pressable style={styles.replayButton} onPress={() => onReplay(false)}>
-              <Text style={styles.replayText}>▶ Replay</Text>
+            <Pressable style={styles.replayPill} onPress={() => onReplay(false)}>
+              <Ionicons name="play" size={12} color={colors.spanishText} />
+              <AppText variant="caption" color={colors.spanishText}>
+                Replay
+              </AppText>
             </Pressable>
-            <Pressable style={styles.replayButton} onPress={() => onReplay(true)}>
-              <Text style={styles.replayText}>🐢 Slow</Text>
+            <Pressable style={styles.replayPill} onPress={() => onReplay(true)}>
+              <AppText style={styles.replayEmoji}>🐢</AppText>
+              <AppText variant="caption" color={colors.spanishText}>
+                Slow
+              </AppText>
             </Pressable>
           </View>
         </View>
@@ -430,8 +468,6 @@ function TranscriptRow({
 function ScoreRow({entry}: {entry: TranscriptEntry}) {
   const score = entry.score ?? 0;
   const perfect = score >= 80;
-  const color =
-    perfect ? colors.scoreGood : score >= 50 ? colors.scoreMid : colors.scoreLow;
 
   // Pop in with a spring — big and bouncy for a great score.
   const scale = useRef(new Animated.Value(0.3)).current;
@@ -448,40 +484,50 @@ function ScoreRow({entry}: {entry: TranscriptEntry}) {
   const showWhy = missed && !!entry.heard;
 
   return (
-    <Animated.View
-      style={[
-        styles.scoreCard,
-        perfect && styles.scoreCardPerfect,
-        {transform: [{scale}]},
-      ]}
-    >
-      <View style={styles.scoreRow}>
-        <View style={[styles.scoreRing, {borderColor: color}]}>
-          <Text style={[styles.scoreNumber, {color}]}>{score}</Text>
+    <Animated.View style={{transform: [{scale}]}}>
+      <Card
+        borderColor={perfect ? colors.sunshine : undefined}
+        elevated
+        style={styles.scoreCard}
+      >
+        <View style={styles.scoreRow}>
+          <ScoreRing score={score} />
+          <View style={styles.scoreTextBlock}>
+            <AppText variant="title" style={styles.verdictText}>
+              {perfect ? '🎉 ' : ''}
+              {entry.text}
+            </AppText>
+            {entry.spanishTranslation ? (
+              <AppText variant="captionItalic" color={colors.turquoise}>
+                {entry.spanishTranslation}
+              </AppText>
+            ) : null}
+          </View>
         </View>
-        <View style={styles.scoreTextBlock}>
-          <Text style={[styles.scoreText, perfect && styles.scoreTextPerfect]}>
-            {perfect ? '🎉 ' : ''}
-            {entry.text}
-          </Text>
-          {entry.spanishTranslation ? (
-            <Text style={styles.scoreTranslation}>{entry.spanishTranslation}</Text>
-          ) : null}
-        </View>
-      </View>
-      {showWhy && (
-        <View style={styles.whyBox}>
-          <Text style={styles.whyTarget}>
-            {entry.targetWords!.map((w, i) => (
-              <Text key={i} style={w.hit ? styles.whyHit : styles.whyMiss}>
-                {w.word}
-                {i < entry.targetWords!.length - 1 ? ' ' : ''}
-              </Text>
-            ))}
-          </Text>
-          <Text style={styles.whyHeard}>I heard: “{entry.heard}”</Text>
-        </View>
-      )}
+        {showWhy && (
+          <View style={styles.whyBox}>
+            <AppText variant="caption" color={colors.textSecondary} style={styles.whyLabel}>
+              WHAT I HEARD, WORD BY WORD
+            </AppText>
+            <View style={styles.wordChips}>
+              {entry.targetWords!.map((w, i) => (
+                <View key={i} style={[styles.wordChip, w.hit ? styles.wordHit : styles.wordMiss]}>
+                  <AppText
+                    variant="caption"
+                    color={w.hit ? colors.spanishText : colors.danger}
+                    style={w.hit ? undefined : styles.wordMissText}
+                  >
+                    {w.word}
+                  </AppText>
+                </View>
+              ))}
+            </View>
+            <AppText variant="captionItalic" color={colors.textSecondary} style={styles.whyHeard}>
+              I heard: "{entry.heard}"
+            </AppText>
+          </View>
+        )}
+      </Card>
     </Animated.View>
   );
 }
@@ -502,40 +548,62 @@ function NextChips({
   onProgress: () => void;
 }) {
   return (
-    <View style={styles.chipsWrap}>
-      {NEXT_CHIPS.map((chip) => (
+    <Card elevated style={styles.nextCard}>
+      <AppText variant="title" style={styles.nextCardLabel}>
+        Where to next?
+      </AppText>
+      <View style={styles.chipsWrap}>
+        {NEXT_CHIPS.map((chip, i) => (
+          <Pressable
+            key={chip.label}
+            style={({pressed}) => [
+              styles.chip,
+              i === 0 ? styles.chipPrimary : styles.chipLine,
+              pressed && styles.chipPressed,
+            ]}
+            onPress={() => onChoose(chip.choice)}
+          >
+            <AppText
+              variant="caption"
+              color={i === 0 ? colors.textOnAccent : colors.textPrimary}
+              style={styles.chipText}
+            >
+              {chip.label}
+            </AppText>
+          </Pressable>
+        ))}
         <Pressable
-          key={chip.label}
-          style={({pressed}) => [styles.chip, pressed && styles.chipPressed]}
-          onPress={() => onChoose(chip.choice)}
+          style={({pressed}) => [styles.chip, styles.chipLine, pressed && styles.chipPressed]}
+          onPress={onProgress}
         >
-          <Text style={styles.chipText}>{chip.label}</Text>
+          <AppText variant="caption" color={colors.textPrimary} style={styles.chipText}>
+            📊 Progress
+          </AppText>
         </Pressable>
-      ))}
-      <Pressable
-        style={({pressed}) => [styles.chip, styles.chipProgress, pressed && styles.chipPressed]}
-        onPress={onProgress}
-      >
-        <Text style={styles.chipText}>📊 Progress</Text>
-      </Pressable>
-    </View>
+      </View>
+      <AppText variant="caption" color={colors.textSecondary} style={styles.sayHint}>
+        or just say it: <AppText variant="captionItalic" color={colors.spanishText}>"continúa"</AppText> ·{' '}
+        <AppText variant="captionItalic" color={colors.spanishText}>"nuevo tema"</AppText> ·{' '}
+        <AppText variant="captionItalic" color={colors.spanishText}>"progreso"</AppText>
+      </AppText>
+    </Card>
   );
 }
 
 const MIC_LABELS: Record<Phase, string> = {
-  idle: 'Warming up…',
-  greeting: 'Say hi in a second…',
-  'awaiting-english': 'Tell me what you’re doing',
-  recording: 'Listening… pause when you’re done',
-  transcribing: 'Got it, writing that down…',
-  thinking: 'Thinking…',
-  speaking: 'Speaking…',
+  idle: 'Warming up',
+  greeting: 'Say hi in a second',
+  'awaiting-english': "Tell me what you're doing",
+  recording: 'Listening for your Spanish',
+  transcribing: 'Got it, writing that down',
+  thinking: 'Thinking',
+  speaking: 'Speaking',
   'awaiting-repeat': 'Your turn, say it in Spanish',
-  scoring: 'Scoring your attempt…',
-  choosing: 'Say "continúa" or "progreso," or pick a chip 👆',
+  scoring: 'Scoring your attempt',
+  choosing: 'Tap a chip, or just talk',
 };
 
-function MicButton({
+function MicZone({
   phase,
   autoListen,
   disabled,
@@ -568,13 +636,32 @@ function MicButton({
 
   const label = isRecording
     ? autoListen
-      ? 'Listening… pause when done (or tap to send)'
-      : 'Listening… tap to send'
+      ? 'Listening, pause when done (or tap to send)'
+      : 'Listening, tap to send'
     : MIC_LABELS[phase];
+
+  // ListenBars state, per ui-redesign-prompt-v2.md §4: rippling while
+  // recording, gentle breathe while auto-listen is armed and waiting for its
+  // turn, frozen low while busy, hidden when tap mode is off and idle.
+  const canListenSoon =
+    phase === 'awaiting-english' || phase === 'awaiting-repeat' || phase === 'choosing';
+  let barsState: ListenBarsState;
+  if (isRecording) {
+    barsState = 'rippling';
+  } else if (isBusy) {
+    barsState = 'frozen';
+  } else if (autoListen && canListenSoon) {
+    barsState = 'breathing';
+  } else {
+    barsState = 'hidden';
+  }
 
   return (
     <View style={styles.micArea}>
-      <Text style={styles.micLabel}>{label}</Text>
+      <ListenBars state={barsState} />
+      <AppText variant="caption" color={colors.textSecondary} style={styles.micLabel}>
+        {label.toUpperCase()}
+      </AppText>
       <Animated.View style={{transform: [{scale: pulse}]}}>
         <Pressable
           onPress={onPress}
@@ -586,7 +673,7 @@ function MicButton({
             disabled && !isBusy && styles.micButtonDisabled,
           ]}
         >
-          <Text style={styles.micIcon}>{isRecording ? '➤' : '🎙️'}</Text>
+          <Ionicons name="mic" size={26} color={colors.textOnAccent} />
         </Pressable>
       </Animated.View>
     </View>
@@ -597,247 +684,219 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 10,
   },
-  headerBack: {
-    color: colors.textSecondary,
-    fontSize: 32,
-    lineHeight: 32,
+  modePill: {
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderColor: '#EADFCB',
+    borderRadius: 999,
+    backgroundColor: colors.surface,
+    overflow: 'hidden',
   },
-  headerTitle: {
-    ...fonts.caption,
-    color: colors.textSecondary,
-    letterSpacing: 3,
-    textTransform: 'uppercase',
+  modeSeg: {
+    paddingVertical: 5,
+    paddingHorizontal: 10,
   },
-  autoToggle: {
-    ...fonts.caption,
-    color: colors.turquoise,
+  modeSegOn: {
+    backgroundColor: colors.turquoise,
   },
-  autoToggleOff: {
-    color: colors.textSecondary,
+  modeText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   listContent: {
-    paddingHorizontal: 20,
     paddingBottom: 16,
-    gap: 10,
+    gap: 11,
   },
   coachBlock: {
     marginTop: 8,
+    maxWidth: '92%',
   },
-  coachLine: {
-    ...fonts.body,
-    color: colors.textSecondary,
-  },
-  coachTranslation: {
-    ...fonts.caption,
-    color: colors.turquoise,
-    marginTop: 2,
-    fontStyle: 'italic',
+  esSub: {
+    marginTop: 3,
   },
   bubble: {
     borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    maxWidth: '88%',
+    borderBottomRightRadius: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    maxWidth: '85%',
   },
   userBubble: {
     backgroundColor: colors.englishBubble,
     alignSelf: 'flex-end',
   },
-  userText: {
-    ...fonts.body,
-    color: colors.textPrimary,
-  },
-  userTranslation: {
-    ...fonts.caption,
-    color: colors.textSecondary,
-    marginTop: 4,
-    fontStyle: 'italic',
-  },
   spanishBubble: {
     backgroundColor: colors.spanishBubble,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.spanishBorder,
+    borderBottomLeftRadius: 6,
+    borderBottomRightRadius: 18,
     alignSelf: 'flex-start',
-  },
-  spanishText: {
-    ...fonts.title,
-    color: colors.spanishText,
+    maxWidth: '94%',
+    paddingVertical: 14,
+    paddingHorizontal: 15,
   },
   meaningText: {
-    ...fonts.caption,
-    color: colors.textSecondary,
-    marginTop: 6,
+    marginTop: 4,
   },
   replayRow: {
     flexDirection: 'row',
-    gap: 10,
-    marginTop: 12,
+    gap: 8,
+    marginTop: 11,
   },
-  replayButton: {
-    backgroundColor: colors.surfaceRaised,
-    borderRadius: 10,
+  replayPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.spanishBorder,
+    borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
-  replayText: {
-    ...fonts.caption,
-    color: colors.textPrimary,
+  replayEmoji: {
+    fontSize: 12,
   },
   scoreCard: {
     marginVertical: 4,
-  },
-  scoreCardPerfect: {
-    backgroundColor: colors.englishBubble,
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: colors.sunshine,
   },
   scoreRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
-  scoreTextPerfect: {
-    ...fonts.body,
-    fontWeight: '700',
-    color: colors.textPrimary,
+  scoreTextBlock: {
+    flex: 1,
+  },
+  verdictText: {
+    fontSize: 17,
   },
   whyBox: {
-    marginTop: 10,
-    backgroundColor: colors.surface,
+    marginTop: 12,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: '#EADFCB',
     borderRadius: 12,
     padding: 10,
   },
-  whyTarget: {
-    ...fonts.body,
-    color: colors.textPrimary,
-    lineHeight: 26,
+  whyLabel: {
+    fontSize: 10.5,
+    letterSpacing: 0.5,
+    marginBottom: 7,
   },
-  whyHit: {
-    color: colors.scoreGood,
+  wordChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
   },
-  whyMiss: {
-    color: colors.scoreLow,
-    fontWeight: '700',
+  wordChip: {
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  wordHit: {
+    backgroundColor: colors.spanishBubble,
+  },
+  wordMiss: {
+    backgroundColor: '#FBE3DF',
+  },
+  wordMissText: {
     textDecorationLine: 'underline',
+    textDecorationStyle: 'solid',
   },
   whyHeard: {
-    ...fonts.caption,
-    color: colors.textSecondary,
-    marginTop: 6,
-    fontStyle: 'italic',
+    marginTop: 8,
+  },
+  nextCard: {
+    marginTop: 2,
+  },
+  nextCardLabel: {
+    fontSize: 14,
+    marginBottom: 10,
   },
   chipsWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'center',
     gap: 8,
-    paddingHorizontal: 20,
-    paddingBottom: 4,
   },
   chip: {
-    backgroundColor: colors.surface,
-    borderWidth: 1.5,
-    borderColor: colors.turquoise,
-    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 999,
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: 9,
   },
-  chipProgress: {
-    borderColor: colors.sunshine,
+  chipPrimary: {
+    backgroundColor: colors.accent,
+  },
+  chipLine: {
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: '#EADFCB',
   },
   chipPressed: {
-    backgroundColor: colors.spanishBubble,
+    opacity: 0.8,
   },
   chipText: {
-    ...fonts.caption,
-    color: colors.turquoise,
     fontWeight: '600',
   },
-  scoreRing: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    borderWidth: 3,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  scoreNumber: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  scoreTextBlock: {
-    flex: 1,
-  },
-  scoreText: {
-    ...fonts.caption,
-    color: colors.textSecondary,
-  },
-  scoreTranslation: {
-    ...fonts.caption,
-    color: colors.turquoise,
-    marginTop: 2,
-    fontStyle: 'italic',
-  },
-  errorText: {
-    ...fonts.caption,
-    color: colors.danger,
-    paddingHorizontal: 20,
-    paddingBottom: 4,
+  sayHint: {
+    marginTop: 11,
   },
   micArea: {
     alignItems: 'center',
     paddingBottom: 18,
     paddingTop: 8,
+    gap: 8,
   },
   micLabel: {
-    ...fonts.caption,
-    color: colors.textSecondary,
-    marginBottom: 12,
+    letterSpacing: 0.5,
   },
   micButton: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: colors.accent,
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    shadowOffset: {width: 0, height: 0},
   },
   micButtonRecording: {
     backgroundColor: colors.turquoise,
+    shadowColor: colors.turquoise,
   },
   micButtonBusy: {
     backgroundColor: colors.surfaceRaised,
+    shadowOpacity: 0,
   },
   micButtonDisabled: {
     opacity: 0.5,
   },
-  micIcon: {
-    fontSize: 30,
-    color: colors.textOnAccent,
-  },
   permissionBox: {
     flex: 1,
     justifyContent: 'center',
-    paddingHorizontal: 28,
+    paddingHorizontal: 8,
     gap: 16,
   },
+  permissionIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.englishBubble,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
   permissionTitle: {
-    ...fonts.title,
-    color: colors.textPrimary,
+    fontSize: 20,
   },
   permissionBody: {
-    ...fonts.body,
-    color: colors.textSecondary,
     lineHeight: 24,
   },
   permissionButton: {
@@ -847,8 +906,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 8,
   },
-  permissionButtonText: {
-    ...fonts.body,
-    color: colors.accent,
+  errorBanner: {
+    backgroundColor: '#FBE3DF',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 8,
   },
 });
