@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": false,
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Qué Onda listens to you speak so it can teach you Spanish phrases for what you're doing right now."
+        "NSMicrophoneUsageDescription": "Pronto listens to you speak so it can teach you Spanish phrases for what you're doing right now."
       }
     },
     "android": {
@@ -34,7 +34,7 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "Qué Onda listens to you speak so it can teach you Spanish phrases for what you're doing right now."
+          "microphonePermission": "Pronto listens to you speak so it can teach you Spanish phrases for what you're doing right now."
         }
       ],
       "expo-asset",

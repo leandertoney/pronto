@@ -11,6 +11,28 @@ import {APP_NAME, APP_SUBTITLE, APP_TAGLINE} from '../src/constants/brand';
 import {loadPhrases} from '../src/lib/phraseStore';
 import {colors} from '../src/theme';
 
+// Same 3-color order as ZocaloMark (coral, sunshine, turquoise), cycling
+// per letter so the pattern repeats every 3 letters — "Pronto" is 6 letters,
+// so each color appears exactly twice, in the logo's own order.
+const WORDMARK_COLORS = [colors.accent, colors.sunshine, colors.turquoise];
+
+function RainbowWordmark({text}: {text: string}) {
+  return (
+    <AppText variant="title" style={styles.wordmark}>
+      {text.split('').map((letter, i) => (
+        <AppText
+          key={i}
+          variant="title"
+          color={WORDMARK_COLORS[i % WORDMARK_COLORS.length]}
+          style={styles.wordmark}
+        >
+          {letter}
+        </AppText>
+      ))}
+    </AppText>
+  );
+}
+
 /** Home: the living zócalo mark, the wordmark, the greeting, and one CTA. */
 export default function Home() {
   const router = useRouter();
@@ -28,9 +50,7 @@ export default function Home() {
         <ZocaloMark />
 
         <View style={styles.wordmarkRow}>
-          <AppText variant="title" style={styles.wordmark}>
-            {APP_NAME}
-          </AppText>
+          <RainbowWordmark text={APP_NAME} />
           <AppText variant="caption" color={colors.textSecondary} style={styles.subtitleTag}>
             {APP_SUBTITLE.toUpperCase()}
           </AppText>
@@ -90,7 +110,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   wordmark: {
-    fontSize: 20,
+    fontSize: 30,
     letterSpacing: -0.3,
   },
   subtitleTag: {

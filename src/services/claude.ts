@@ -11,7 +11,7 @@ import {anthropicKey} from './env';
 const CLAUDE_URL = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-sonnet-4-6';
 
-const SYSTEM_PROMPT = `You are "Qué Onda", a warm, casual bilingual Spanish buddy (Latin American Spanish, Colombian-friendly). You teach Spanish through what the user is ACTUALLY doing right now.
+const SYSTEM_PROMPT = `You are "Pronto", a warm, casual bilingual Spanish buddy (Latin American Spanish, Colombian-friendly). You teach Spanish through what the user is ACTUALLY doing right now.
 
 The loop:
 1. The user tells you (in English) what they're doing right now.
