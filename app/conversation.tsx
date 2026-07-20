@@ -26,7 +26,7 @@ import {ListenBars, ListenBarsState} from '../src/components/ListenBars';
 import {ScoreRing} from '../src/components/ScoreRing';
 import {ScreenHeader} from '../src/components/ScreenHeader';
 import {recognizeCommand} from '../src/lib/nextCommand';
-import {playFile} from '../src/services/tts';
+import {playFile, speakSpanish} from '../src/services/tts';
 import {transcribe} from '../src/services/whisper';
 import {colors} from '../src/theme';
 import {
@@ -85,7 +85,6 @@ export default function Conversation() {
   const handleEnglishText = useConversation((s) => s.handleEnglishText);
   const handleRepeatRecording = useConversation((s) => s.handleRepeatRecording);
   const chooseNext = useConversation((s) => s.chooseNext);
-  const replayTarget = useConversation((s) => s.replayTarget);
   const [pendingProgress, setPendingProgress] = useState(false);
   const reset = useConversation((s) => s.reset);
 
@@ -371,9 +370,7 @@ export default function Conversation() {
         ref={listRef}
         data={transcript}
         keyExtractor={(item) => item.id}
-        renderItem={({item}) => (
-          <TranscriptRow entry={item} onReplay={replayTarget} />
-        )}
+        renderItem={({item}) => <TranscriptRow entry={item} />}
         contentContainerStyle={styles.listContent}
       />
 
@@ -399,13 +396,7 @@ export default function Conversation() {
   );
 }
 
-function TranscriptRow({
-  entry,
-  onReplay,
-}: {
-  entry: TranscriptEntry;
-  onReplay: (slow: boolean) => void;
-}) {
+function TranscriptRow({entry}: {entry: TranscriptEntry}) {
   switch (entry.kind) {
     case 'coach':
       return (
@@ -444,37 +435,67 @@ function TranscriptRow({
         </View>
       );
     case 'spanish':
-      return (
-        <View style={[styles.bubble, styles.spanishBubble]}>
-          <AppText variant="title" color={colors.spanishText}>
-            {entry.text}
-          </AppText>
-          {entry.englishMeaning ? (
-            <AppText variant="caption" color={colors.textSecondary} style={styles.meaningText}>
-              {entry.englishMeaning}
-            </AppText>
-          ) : null}
-          <View style={styles.replayRow}>
-            <Pressable style={styles.replayPill} onPress={() => onReplay(false)}>
-              <Ionicons name="play" size={12} color={colors.spanishText} />
-              <AppText variant="caption" color={colors.spanishText}>
-                Replay
-              </AppText>
-            </Pressable>
-            <Pressable style={styles.replayPill} onPress={() => onReplay(true)}>
-              <AppText style={styles.replayEmoji}>🐢</AppText>
-              <AppText variant="caption" color={colors.spanishText}>
-                Slow
-              </AppText>
-            </Pressable>
-          </View>
-        </View>
-      );
+      return <SpanishCard entry={entry} />;
     case 'score':
       return <ScoreRow entry={entry} />;
     default:
       return null;
   }
+}
+
+function SpanishCard({entry}: {entry: TranscriptEntry}) {
+  const [playing, setPlaying] = useState(false);
+
+  // Bound to THIS card's own phrase, not whatever the store's currentTarget
+  // happens to be — a past card's Replay/Slow must always play what that
+  // card actually shows, even after the conversation has moved on to a new
+  // phrase (previously a bug: every card called the same store-level
+  // replayTarget, which only ever knew the current phrase).
+  const play = useCallback(
+    async (slow: boolean) => {
+      if (playing) return;
+      setPlaying(true);
+      try {
+        await speakSpanish(entry.text, slow);
+      } finally {
+        setPlaying(false);
+      }
+    },
+    [playing, entry.text],
+  );
+
+  return (
+    <View style={[styles.bubble, styles.spanishBubble]}>
+      <AppText variant="title" color={colors.spanishText}>
+        {entry.text}
+      </AppText>
+      {entry.englishMeaning ? (
+        <AppText variant="caption" color={colors.textSecondary} style={styles.meaningText}>
+          {entry.englishMeaning}
+        </AppText>
+      ) : null}
+      <View style={styles.replayRow}>
+        <Pressable
+          style={({pressed}) => [styles.replayPill, (pressed || playing) && styles.replayPillActive]}
+          onPress={() => play(false)}
+        >
+          <Ionicons name="play" size={12} color={colors.spanishText} />
+          <AppText variant="caption" color={colors.spanishText}>
+            Replay
+          </AppText>
+        </Pressable>
+        <Pressable
+          style={({pressed}) => [styles.replayPill, (pressed || playing) && styles.replayPillActive]}
+          onPress={() => play(true)}
+        >
+          <AppText style={styles.replayEmoji}>🐢</AppText>
+          <AppText variant="caption" color={colors.spanishText}>
+            Slow
+          </AppText>
+        </Pressable>
+      </View>
+    </View>
+  );
 }
 
 function ScoreRow({entry}: {entry: TranscriptEntry}) {
@@ -797,6 +818,9 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 6,
+  },
+  replayPillActive: {
+    opacity: 0.75,
   },
   replayEmoji: {
     fontSize: 12,

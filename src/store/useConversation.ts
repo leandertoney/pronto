@@ -62,7 +62,6 @@ interface ConversationState {
   handleEnglishText: (english: string, attemptAudioUri?: string) => Promise<void>;
   handleRepeatRecording: (uri: string) => Promise<void>;
   chooseNext: (choice: NextChoice) => Promise<void>;
-  replayTarget: (slow: boolean) => Promise<void>;
   clearError: () => void;
   reset: () => void;
 }
@@ -435,12 +434,6 @@ export const useConversation = create<ConversationState>((set, get) => ({
         error: e instanceof Error ? e.message : 'Something went wrong, try again.',
       });
     }
-  },
-
-  replayTarget: async (slow: boolean) => {
-    const target = get().currentTarget;
-    if (!target) return;
-    await speakSpanish(target.spanish, slow);
   },
 
   clearError: () => set({error: null}),
