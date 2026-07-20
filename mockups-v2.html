@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pronto UI v2 (grounded in CURRENT_STATE.md)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* exact tokens from src/theme.ts, nothing invented */
+    --background:#FFF7EC; --surface:#FFFFFF; --raised:#F9E9D2;
+    --accent:#F25C3A; --turquoise:#12A5A0; --sunshine:#FFB627;
+    --text1:#33241C; --text2:#8A6F5C; --on-accent:#FFFFFF;
+    --es-bubble:#E0F5F2; --es-border:#12A5A0; --es-text:#0B7C77;
+    --en-bubble:#FFF2D1; --danger:#D93A2B;
+    --good:#2BA84A; --mid:#F5A623; --low:#D93A2B;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#EFE4D3;font-family:'Instrument Sans',sans-serif;color:var(--text1);padding:48px 32px}
+  h1{font-family:'Bricolage Grotesque';font-weight:800;font-size:28px}
+  .sub{color:#7A6350;margin:8px 0 40px;max-width:760px;line-height:1.55}
+  .row{display:flex;gap:34px;flex-wrap:wrap;align-items:flex-start}
+  .stack{display:flex;flex-direction:column;gap:10px}
+  .cap{font-family:'Bricolage Grotesque';font-size:13px;font-weight:700;color:#7A6350;letter-spacing:.4px;text-transform:uppercase}
+  .phone{width:330px;height:700px;background:var(--background);border:1px solid #E2D3BC;border-radius:42px;overflow:hidden;position:relative;box-shadow:0 24px 60px rgba(70,45,25,.18);display:flex;flex-direction:column}
+  .status{display:flex;justify-content:space-between;padding:14px 24px 4px;font-size:12px;color:var(--text2);font-weight:600}
+  .screen{flex:1;display:flex;flex-direction:column;padding:8px 20px 20px;position:relative;overflow:hidden}
+
+  /* signature: zocalo stripe (the existing 3-bar mark, promoted to a living element) */
+  .zocalo{display:flex;flex-direction:column;gap:5px}
+  .zocalo i{display:block;height:8px;border-radius:4px}
+  .zocalo .a{width:56px;background:var(--accent)}
+  .zocalo .s{width:34px;background:var(--sunshine)}
+  .zocalo .t{width:18px;background:var(--turquoise)}
+  .listen-bars{display:flex;gap:5px;align-items:flex-end;height:26px}
+  .listen-bars i{width:7px;border-radius:4px;background:var(--turquoise)}
+  .listen-bars i:nth-child(1){height:12px;background:var(--accent)}
+  .listen-bars i:nth-child(2){height:22px;background:var(--sunshine)}
+  .listen-bars i:nth-child(3){height:16px}
+  .listen-bars i:nth-child(4){height:24px;background:var(--accent)}
+  .listen-bars i:nth-child(5){height:10px;background:var(--sunshine)}
+
+  /* header pattern shared by inner screens */
+  .head{display:flex;align-items:center;justify-content:space-between;padding:8px 0 12px}
+  .back{width:38px;height:38px;border-radius:12px;background:var(--surface);border:1px solid #EADFCB;display:flex;align-items:center;justify-content:center;color:var(--text1);font-size:18px}
+  .head .t{font-family:'Bricolage Grotesque';font-weight:700;font-size:16px}
+  .badge{background:var(--turquoise);color:#fff;border-radius:999px;padding:4px 11px;font-size:12px;font-weight:700}
+
+  /* ---- 1 HOME ---- */
+  .home-hero{flex:1;display:flex;flex-direction:column;justify-content:center;gap:16px}
+  .wordmark{font-family:'Bricolage Grotesque';font-weight:800;font-size:20px;letter-spacing:-.3px}
+  .wordmark b{color:var(--accent)}
+  .greet{font-family:'Bricolage Grotesque';font-weight:800;font-size:38px;line-height:1.06;letter-spacing:-.8px}
+  .greet .hl{color:var(--accent)}
+  .home-sub{color:var(--text2);font-size:15.5px;line-height:1.5;max-width:250px}
+  .stat-line{display:flex;align-items:baseline;gap:8px;margin-top:4px}
+  .stat-line b{font-family:'Bricolage Grotesque';font-size:26px;font-weight:800;color:var(--es-text)}
+  .stat-line span{font-size:13px;color:var(--text2)}
+  .cta{background:var(--accent);color:#fff;border:none;border-radius:16px;padding:18px;font-family:'Bricolage Grotesque';font-weight:700;font-size:17px;text-align:center;box-shadow:0 8px 20px rgba(242,92,58,.30)}
+  .cta2{margin-top:10px;background:transparent;border:2px solid var(--turquoise);color:var(--turquoise);border-radius:16px;padding:15px;font-family:'Bricolage Grotesque';font-weight:700;font-size:15px;text-align:center}
+
+  /* ---- transcript pieces ---- */
+  .msgs{flex:1;display:flex;flex-direction:column;gap:11px;padding:10px 0;overflow:hidden}
+  .coach{color:var(--text2);font-size:14.5px;line-height:1.45;max-width:92%}
+  .coach .es-sub{display:block;color:var(--turquoise);font-style:italic;font-size:12.5px;margin-top:3px}
+  .ubub{align-self:flex-end;background:var(--en-bubble);border-radius:16px;border-bottom-right-radius:6px;padding:11px 14px;max-width:85%;font-size:14.5px}
+  .ubub .es-sub{display:block;color:var(--text2);font-style:italic;font-size:12.5px;margin-top:3px}
+  .es-card{background:var(--es-bubble);border:1.5px solid var(--es-border);border-radius:18px;border-bottom-left-radius:6px;padding:14px 15px;max-width:94%}
+  .es-card .es{font-family:'Bricolage Grotesque';color:var(--es-text);font-weight:700;font-size:19px;line-height:1.3}
+  .es-card .en{color:var(--text2);font-size:12.5px;margin-top:4px}
+  .es-card .acts{display:flex;gap:8px;margin-top:11px}
+  .tinybtn{border:1px solid var(--es-border);background:var(--surface);color:var(--es-text);font-size:12px;font-weight:600;border-radius:999px;padding:6px 12px;display:flex;gap:5px;align-items:center}
+
+  /* mic zone */
+  .mic-zone{padding-top:8px;display:flex;flex-direction:column;align-items:center;gap:8px}
+  .mic-label{font-size:12px;color:var(--text2);font-weight:600;letter-spacing:.5px;text-transform:uppercase}
+  .mic{width:72px;height:72px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 9px rgba(242,92,58,.14),0 0 0 20px rgba(242,92,58,.06)}
+  .mic.listening{background:var(--turquoise);box-shadow:0 0 0 9px rgba(18,165,160,.16),0 0 0 20px rgba(18,165,160,.07)}
+  .mode-pill{display:flex;border:1px solid #EADFCB;border-radius:999px;background:var(--surface);overflow:hidden;font-size:11px;font-weight:700}
+  .mode-pill span{padding:5px 10px;color:var(--text2)}
+  .mode-pill .on{background:var(--turquoise);color:#fff}
+
+  /* ---- 3 SCORE ---- */
+  .score-card{background:var(--surface);border:1.5px solid var(--sunshine);border-radius:18px;padding:14px 15px;max-width:96%;box-shadow:0 6px 16px rgba(70,45,25,.08)}
+  .score-top{display:flex;gap:12px;align-items:center}
+  .ring{width:46px;height:46px;border-radius:50%;border:4px solid var(--good);display:flex;align-items:center;justify-content:center;font-family:'Bricolage Grotesque';font-weight:800;font-size:15px;color:var(--good)}
+  .verdict{font-family:'Bricolage Grotesque';font-weight:800;font-size:17px}
+  .verdict .es-sub{display:block;color:var(--turquoise);font-style:italic;font-weight:500;font-size:12.5px;font-family:'Instrument Sans'}
+  .why{margin-top:12px;background:var(--background);border:1px solid #EADFCB;border-radius:12px;padding:10px 12px}
+  .why .lbl{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);font-weight:700;margin-bottom:7px}
+  .wordchips{display:flex;gap:6px;flex-wrap:wrap}
+  .w{font-size:13px;font-weight:600;border-radius:8px;padding:4px 8px}
+  .w.hit{background:var(--es-bubble);color:var(--es-text)}
+  .w.miss{background:#FBE3DF;color:var(--danger);text-decoration:underline wavy}
+  .heard{font-size:12px;color:var(--text2);font-style:italic;margin-top:8px}
+
+  /* ---- 4 CHOOSING ---- */
+  .next-card{background:var(--surface);border:1px solid #EADFCB;border-radius:18px;padding:14px;box-shadow:0 6px 16px rgba(70,45,25,.07)}
+  .next-card .lbl{font-family:'Bricolage Grotesque';font-weight:700;font-size:14px;margin-bottom:10px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{border-radius:999px;padding:9px 14px;font-size:13px;font-weight:600;display:flex;gap:6px;align-items:center}
+  .chip.primary{background:var(--accent);color:#fff}
+  .chip.line{background:var(--background);border:1px solid #EADFCB;color:var(--text1)}
+  .say-hint{margin-top:11px;font-size:12px;color:var(--text2)}
+  .say-hint b{color:var(--es-text);font-style:italic}
+
+  /* ---- 5 MY PHRASES ---- */
+  .pcard{background:var(--surface);border:1px solid #EADFCB;border-radius:16px;padding:13px 14px;display:flex;gap:12px;align-items:center;margin-bottom:9px}
+  .pcard .ring{width:40px;height:40px;font-size:13px;flex-shrink:0}
+  .pcard .es{font-family:'Bricolage Grotesque';font-weight:700;color:var(--es-text);font-size:14.5px}
+  .pcard .en{color:var(--text2);font-size:12px;margin-top:2px}
+  .pcard .grow{flex:1}
+  .icircle{width:32px;height:32px;border-radius:10px;background:var(--background);border:1px solid #EADFCB;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+  .ring.mid{border-color:var(--mid);color:var(--mid)}
+  .ring.low{border-color:var(--low);color:var(--low)}
+
+  /* ---- 6 PROGRESS ---- */
+  .tiles{display:flex;gap:9px}
+  .tile{flex:1;background:var(--surface);border:1px solid #EADFCB;border-radius:16px;padding:13px 10px;text-align:center}
+  .tile b{font-family:'Bricolage Grotesque';font-weight:800;font-size:22px;display:block}
+  .tile span{font-size:10.5px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+  .sec{display:flex;gap:8px;align-items:center;margin:16px 0 9px}
+  .sec i{width:8px;height:8px;border-radius:50%}
+  .sec .t{font-family:'Bricolage Grotesque';font-weight:700;font-size:14px}
+  .prow{background:var(--surface);border:1px solid #EADFCB;border-radius:14px;padding:11px 13px;display:flex;gap:11px;align-items:center;margin-bottom:8px}
+  .prow .ring{width:34px;height:34px;font-size:11.5px;border-width:3px;flex-shrink:0}
+  .dict{display:flex;flex-wrap:wrap;gap:7px}
+  .wchip{background:var(--surface);border:1px solid #EADFCB;border-radius:999px;padding:7px 12px}
+  .wchip b{font-size:13px;color:var(--es-text)}
+  .wchip span{font-size:10.5px;color:var(--text2);margin-left:4px}
+  .wchip .n{background:var(--sunshine);color:var(--text1);border-radius:999px;font-size:10px;font-weight:700;padding:1px 6px;margin-left:5px}
+
+  .note{margin-top:44px;border-top:1px solid #D9C9B0;padding-top:22px;color:#7A6350;font-size:13.5px;line-height:1.65;max-width:880px}
+  .note b{color:var(--text1)}
+</style>
+</head>
+<body>
+
+<h1>Pronto, UI v2</h1>
+<p class="sub">Pronto · AI Spanish Tutor. Grounded in CURRENT_STATE.md: same four screens, same Guatapé zócalo palette (every hex is straight from src/theme.ts), same hands-free flow. What changes: real typography (Bricolage Grotesque display + Instrument Sans body), the zócalo stripe promoted from static decoration to the app's living "listening" indicator, proper icons instead of emoji chrome, and English navigation labels. Spanish stays the color of learning: turquoise family, always.</p>
+
+<div class="row">
+
+  <!-- 1 HOME -->
+  <div class="stack">
+    <div class="cap">1 · Home</div>
+    <div class="phone">
+      <div class="status"><span>9:41</span><span>􀙇 􀛨</span></div>
+      <div class="screen">
+        <div class="home-hero">
+          <div class="zocalo"><i class="a"></i><i class="s"></i><i class="t"></i></div>
+          <div class="wordmark">pron<b>to</b> <span style="font-family:'Instrument Sans';font-weight:600;font-size:11px;color:var(--text2);letter-spacing:.5px;text-transform:uppercase;margin-left:6px">AI Spanish Tutor</span></div>
+          <div class="greet">¿Qué estás <span class="hl">haciendo?</span></div>
+          <div class="home-sub"><b style="color:var(--text1)">Spanish for right now.</b> Tell me what you're doing, I'll teach you to say it.</div>
+          <div class="stat-line"><b>23</b><span>phrases you actually use</span></div>
+        </div>
+        <button class="cta">Start talking</button>
+        <button class="cta2">My progress · 23</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2 CONVERSATION, LISTENING -->
+  <div class="stack">
+    <div class="cap">2 · Conversation, listening</div>
+    <div class="phone">
+      <div class="status"><span>9:42</span><span>􀙇 􀛨</span></div>
+      <div class="screen">
+        <div class="head">
+          <div class="back">‹</div>
+          <div class="t">Right now</div>
+          <div class="mode-pill"><span class="on">auto</span><span>tap</span></div>
+        </div>
+        <div class="msgs">
+          <div class="coach">What are you doing right now?<span class="es-sub">¿Qué onda?</span></div>
+          <div class="ubub">I'm making coffee in my kitchen</div>
+          <div class="es-card">
+            <div class="es">Estoy haciendo café en mi cocina</div>
+            <div class="en">I'm making coffee in my kitchen</div>
+            <div class="acts"><button class="tinybtn">▶ Replay</button><button class="tinybtn">🐢 Slow</button></div>
+          </div>
+          <div class="coach">Your turn. Take your time.<span class="es-sub">Te toca. Con calma.</span></div>
+        </div>
+        <div class="mic-zone">
+          <div class="listen-bars"><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="mic-label">Listening for your Spanish</div>
+          <div class="mic listening"><svg width="26" height="26" viewBox="0 0 24 24" fill="#fff"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-2.08A7 7 0 0 0 19 12h-2Z"/></svg></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3 SCORE MOMENT -->
+  <div class="stack">
+    <div class="cap">3 · Score, with the why box</div>
+    <div class="phone">
+      <div class="status"><span>9:43</span><span>􀙇 􀛨</span></div>
+      <div class="screen">
+        <div class="head">
+          <div class="back">‹</div>
+          <div class="t">Right now</div>
+          <div class="mode-pill"><span class="on">auto</span><span>tap</span></div>
+        </div>
+        <div class="msgs">
+          <div class="ubub">Estoy haciendo café en mi casina</div>
+          <div class="score-card" style="border-color:#EADFCB">
+            <div class="score-top">
+              <div class="ring mid">68</div>
+              <div class="verdict">So close. One more time.<span class="es-sub">Casi casi. Una vez más.</span></div>
+            </div>
+            <div class="why">
+              <div class="lbl">What I heard, word by word</div>
+              <div class="wordchips">
+                <span class="w hit">Estoy</span><span class="w hit">haciendo</span><span class="w hit">café</span><span class="w hit">en</span><span class="w hit">mi</span><span class="w miss">cocina</span>
+              </div>
+              <div class="heard">I heard: "estoy haciendo café en mi casina"</div>
+            </div>
+          </div>
+          <div class="es-card">
+            <div class="es">co · ci · na</div>
+            <div class="en">Replaying slowly, listen for the o</div>
+            <div class="acts"><button class="tinybtn">🐢 Again</button></div>
+          </div>
+        </div>
+        <div class="mic-zone">
+          <div class="listen-bars"><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="mic-label">Try it again when ready</div>
+          <div class="mic listening"><svg width="26" height="26" viewBox="0 0 24 24" fill="#fff"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-2.08A7 7 0 0 0 19 12h-2Z"/></svg></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4 CHOOSING -->
+  <div class="stack">
+    <div class="cap">4 · Choosing what's next</div>
+    <div class="phone">
+      <div class="status"><span>9:45</span><span>􀙇 􀛨</span></div>
+      <div class="screen">
+        <div class="head">
+          <div class="back">‹</div>
+          <div class="t">Right now</div>
+          <div class="mode-pill"><span class="on">auto</span><span>tap</span></div>
+        </div>
+        <div class="msgs">
+          <div class="score-card">
+            <div class="score-top">
+              <div class="ring">91</div>
+              <div class="verdict">🎉 ¡Eso es!<span class="es-sub">That's it!</span></div>
+            </div>
+          </div>
+          <div class="coach">Saved. That one's yours now.<span class="es-sub">Guardada. Ya es tuya.</span></div>
+          <div class="next-card">
+            <div class="lbl">Where to next?</div>
+            <div class="chips">
+              <span class="chip primary">＋ Build on it</span>
+              <span class="chip line">📍 Add where</span>
+              <span class="chip line">🕐 Add when</span>
+              <span class="chip line">😊 Add a feeling</span>
+              <span class="chip line">🔄 New topic</span>
+              <span class="chip line">📊 Progress</span>
+            </div>
+            <div class="say-hint">or just say it: <b>"continúa"</b> · <b>"nuevo tema"</b> · <b>"progreso"</b></div>
+          </div>
+        </div>
+        <div class="mic-zone">
+          <div class="listen-bars"><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="mic-label">Tap a chip, or just talk</div>
+          <div class="mic listening"><svg width="26" height="26" viewBox="0 0 24 24" fill="#fff"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-2.08A7 7 0 0 0 19 12h-2Z"/></svg></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5 MY PHRASES -->
+  <div class="stack">
+    <div class="cap">5 · My phrases</div>
+    <div class="phone">
+      <div class="status"><span>9:51</span><span>􀙇 􀛨</span></div>
+      <div class="screen">
+        <div class="head">
+          <div class="back">‹</div>
+          <div class="t">My <span style="color:var(--accent)">phrases</span></div>
+          <div class="badge">23</div>
+        </div>
+        <div style="flex:1;padding-top:6px">
+          <div class="pcard">
+            <div class="ring">91</div>
+            <div class="grow"><div class="es">Estoy haciendo café en mi cocina</div><div class="en">I'm making coffee in my kitchen</div></div>
+            <div class="icircle">🐢</div><div class="icircle">✕</div>
+          </div>
+          <div class="pcard">
+            <div class="ring">87</div>
+            <div class="grow"><div class="es">Estoy trabajando en mi laptop</div><div class="en">I'm working on my laptop</div></div>
+            <div class="icircle">🐢</div><div class="icircle">✕</div>
+          </div>
+          <div class="pcard">
+            <div class="ring mid">74</div>
+            <div class="grow"><div class="es">…mientras escucho música</div><div class="en">while listening to music</div></div>
+            <div class="icircle">🐢</div><div class="icircle">✕</div>
+          </div>
+          <div class="pcard">
+            <div class="ring low">48</div>
+            <div class="grow"><div class="es">Voy al gimnasio por la mañana</div><div class="en">I go to the gym in the morning</div></div>
+            <div class="icircle">🐢</div><div class="icircle">✕</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6 PROGRESS -->
+  <div class="stack">
+    <div class="cap">6 · My progress</div>
+    <div class="phone">
+      <div class="status"><span>9:52</span><span>􀙇 􀛨</span></div>
+      <div class="screen">
+        <div class="head">
+          <div class="back">‹</div>
+          <div class="t">My <span style="color:var(--accent)">progress</span></div>
+          <div style="width:38px"></div>
+        </div>
+        <div style="flex:1;padding-top:4px;overflow:hidden">
+          <div class="tiles">
+            <div class="tile"><b style="color:var(--turquoise)">23</b><span>Phrases</span></div>
+            <div class="tile"><b style="color:var(--sunshine)">61</b><span>Words</span></div>
+            <div class="tile"><b style="color:var(--good)">82</b><span>Avg score</span></div>
+          </div>
+          <div class="sec"><i style="background:var(--accent)"></i><div class="t">Needs practice</div></div>
+          <div class="prow">
+            <div class="ring low">48</div>
+            <div class="grow" style="flex:1"><div class="es" style="font-family:'Bricolage Grotesque';font-weight:700;color:var(--es-text);font-size:13.5px">Voy al gimnasio por la mañana</div><div class="en" style="color:var(--text2);font-size:11.5px">I go to the gym in the morning</div></div>
+            <span style="color:var(--accent);font-weight:700">▶</span>
+          </div>
+          <div class="prow">
+            <div class="ring mid">74</div>
+            <div class="grow" style="flex:1"><div class="es" style="font-family:'Bricolage Grotesque';font-weight:700;color:var(--es-text);font-size:13.5px">…mientras escucho música</div><div class="en" style="color:var(--text2);font-size:11.5px">while listening to music</div></div>
+            <span style="color:var(--accent);font-weight:700">▶</span>
+          </div>
+          <div class="sec"><i style="background:var(--sunshine)"></i><div class="t">My dictionary</div></div>
+          <div class="dict">
+            <span class="wchip"><b>café</b><span>coffee</span><span class="n">×4</span></span>
+            <span class="wchip"><b>cocina</b><span>kitchen</span><span class="n">×2</span></span>
+            <span class="wchip"><b>haciendo</b><span>making</span><span class="n">×3</span></span>
+            <span class="wchip"><b>música</b><span>music</span></span>
+            <span class="wchip"><b>mañana</b><span>morning</span></span>
+            <span class="wchip"><b>gimnasio</b><span>gym</span></span>
+          </div>
+          <div style="margin-top:14px;font-size:13px;color:var(--es-text);font-weight:600">Browse all phrases in My phrases →</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<p class="note">
+<b>What changed and why, mapped to the audit:</b> The 3-bar mark that already sits on your Home screen becomes the whole brand: static on Home, animating as an equalizer above the mic while the VAD listens (turning "always listening" from invisible to felt, the single biggest trust gap in a hands-free app). Typography does the premium work the palette can't do alone: Bricolage Grotesque for display and Spanish phrases, Instrument Sans for body, replacing bare system font. The why box gets promoted from an afterthought to the score card's centerpiece, since word-level hit/miss chips are a feature none of your competitors show. The choosing card finally advertises the spoken commands on screen ("or just say: continúa"), fixing the discoverability problem of a voice feature currently taught by a one-time audio tip. Navigation chrome goes English (My phrases, My progress) per the gringo rule, while all learning content stays Spanish-first. Emoji survives only where it's expressive (celebrations, chips); structural chrome gets real icons. No em dashes anywhere in the copy.
+</p>
+
+</body>
+</html>
