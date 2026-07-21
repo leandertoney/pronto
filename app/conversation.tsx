@@ -55,7 +55,7 @@ import {
 const CALIBRATION_MS = 300; // sample the room's noise floor before judging speech/silence
 const SPEECH_MARGIN_DB = 12; // this far above the calibrated floor = speech
 const SILENCE_MARGIN_DB = 6; // back down to this close to the floor = silence
-const SILENCE_HOLD_MS = 1300; // quiet this long after speech -> send
+const SILENCE_HOLD_MS = 1000; // quiet this long after speech -> send (was 1300, trimmed for latency; needs device tuning if it starts cutting people off mid-pause)
 const NO_SPEECH_TIMEOUT_MS = 8000; // no speech at all -> restart listening
 const MAX_UTTERANCE_MS = 25000; // hard cap per utterance
 const MIN_UTTERANCE_MS = 500; // shorter than this -> discard (avoids blips)
