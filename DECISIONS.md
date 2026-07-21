@@ -200,8 +200,22 @@ Separate from, and unrelated to, the UI overhaul v2 work above — a distinct fe
 
 **Wordmark**: earlier in the day, Leander rejected a two-tone "pron"/"to" split (matching `mockups-v2.html`) as reading like two separate syllables, so it was flattened to one solid color. Later he asked for the opposite: every letter of "Pronto" colored, cycling through the zócalo's own 3-color order (coral, sunshine, turquoise, per `ZocaloMark.tsx`), repeating after 3 letters, so with 6 letters each color appears exactly twice (P=coral, R=sunshine, O=turquoise, N=coral, T=sunshine, O=turquoise). Not a contradiction: the earlier objection was specifically about a 2-way split reading as two words; a 6-way per-letter cycle is decoration, not a semantic break. Also bumped the Home wordmark font size (20 to 30) per "the name is too small."
 
-**Tagline** changed from "Spanish for right now." to "Speak Spanish Pronto." per direct request.
+**Tagline** changed from "Spanish for right now." to "Speak Spanish. Pronto." (period after "Spanish" so it reads as two declarations, per direct request).
 
 **Remaining "Qué Onda" references removed**: `app.json`'s two `NSMicrophoneUsageDescription`/`microphonePermission` strings, and the Claude system prompt's `You are "Qué Onda"` identity line, both swapped to Pronto.
 
 **Judgment call, not directly requested**: `GREETING_ES` (`'¿Qué onda?'`, the very first thing the app ever says) was swapped to `'¿Qué más, pues?'`. Leander only asked to remove the app NAME, and "¿Qué onda?" is a legitimate standalone Spanish greeting, not purely branding, but it's also the spoken form of the old name and would be the first line heard in every demo. Flagged to Leander as a judgment call, not silently changed. Pre-existing, not a new issue: the ES/EN greeting pair (`GREETING_EN = 'What are you doing right now?'`) already didn't literally translate `'¿Qué onda?'`, and still doesn't literally translate `'¿Qué más, pues?'` either — optional to tighten, not a regression introduced here.
+
+## Home screen spacing attempt: tried and reverted (2026-07-21)
+
+Tried spreading the Home hero's vertical layout (`justifyContent: 'space-evenly'` plus per-child margins) to address "too bunched up" feedback. Leander tested it live and called it "way too far apart... not cohesive," so it was fully reverted to the original `justifyContent: 'center'`/`gap: 16` layout in the same session. Lesson for next attempt: per-child margins stacked on top of `space-evenly` compound unpredictably (gap between two elements becomes even-distribution space PLUS both elements' own margins), which is the likely reason it read as lopsided rather than evenly spread. A future pass at this should pick ONE spacing mechanism (either the flex distribution or explicit gaps, not both) and get eyes on it before committing further.
+
+## "I'm finished learning" button + stoppable TTS (2026-07-21)
+
+Leander pointed out there was no clear way to end a conversation mid-session beyond the back chevron, which doesn't read as a deliberate "I'm done" action. Added an explicit "I'm finished learning" link (checkmark icon + text, matching the existing `profile.tsx` link-row style) above the mic zone in `conversation.tsx`, always visible.
+
+**Found and fixed a real gap while building this**: tapping the existing back chevron (or the new button) mid-`speaking` phase only stopped the recorder, never any in-flight TTS playback — `playFile`'s `createAudioPlayer` instance had no lifecycle tie to the screen, so the Spanish/English voice would keep talking to completion even after navigating back to Home. Fixed by adding a module-level "current stopper" in `tts.ts` that both the nova-voice (`playFile`) and device-voice-fallback (`speakDevice`) paths register into, plus an exported `stopSpeaking()` that cuts off whichever is active. `onDone` in `conversation.tsx` now calls `stopSpeaking()` before navigating back, alongside the existing "stop the recorder first" pattern already used by the chip handlers.
+
+## Deferred: real-time conversation translation mode
+
+Leander asked about adding a live-interpreter mode (translate what someone else is saying in real time and speak back what he wants to say in Spanish, hands-free during an actual conversation with another person) — referencing a demo he saw of a similar ChatGPT/Google feature. Explicitly deferred: this is a fundamentally different feature (new audio architecture, likely a new screen, different UX than the current turn-based teach-and-score loop) rather than a tweak to the existing flow. Not started. Should be scoped as its own dedicated effort when picked back up.

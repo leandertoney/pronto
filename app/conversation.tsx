@@ -26,7 +26,7 @@ import {ListenBars, ListenBarsState} from '../src/components/ListenBars';
 import {ScoreRing} from '../src/components/ScoreRing';
 import {ScreenHeader} from '../src/components/ScreenHeader';
 import {recognizeCommand} from '../src/lib/nextCommand';
-import {speakSpanish} from '../src/services/tts';
+import {speakSpanish, stopSpeaking} from '../src/services/tts';
 import {transcribe} from '../src/services/whisper';
 import {colors} from '../src/theme';
 import {
@@ -320,6 +320,18 @@ export default function Conversation() {
     setPendingProgress(true);
   }, [isRecording, finishListening]);
 
+  // An explicit "done" tap, same as a chip choice — stop listening first so
+  // the mic doesn't keep processing a half-heard clip, and cut off any
+  // in-flight TTS so the app doesn't keep talking over the Home screen
+  // after the user has already left.
+  const onDone = useCallback(async () => {
+    if (isRecording) {
+      await finishListening(false);
+    }
+    stopSpeaking();
+    router.back();
+  }, [isRecording, finishListening, router]);
+
   if (micPermission === 'denied') {
     return (
       <SafeAreaView style={styles.container}>
@@ -385,6 +397,17 @@ export default function Conversation() {
       {choosingActive && (
         <NextChips onChoose={onChipChoice} onProgress={onChipProgress} />
       )}
+
+      <Pressable
+        style={({pressed}) => [styles.doneRow, pressed && styles.pressed]}
+        onPress={onDone}
+        hitSlop={8}
+      >
+        <Ionicons name="checkmark-circle-outline" size={14} color={colors.textSecondary} />
+        <AppText variant="caption" color={colors.textSecondary} style={styles.doneText}>
+          I'm finished learning
+        </AppText>
+      </Pressable>
 
       <MicZone
         phase={phase}
@@ -870,6 +893,19 @@ const styles = StyleSheet.create({
   },
   sayHint: {
     marginTop: 11,
+  },
+  doneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingVertical: 6,
+  },
+  doneText: {
+    letterSpacing: 0.2,
+  },
+  pressed: {
+    opacity: 0.7,
   },
   micArea: {
     alignItems: 'center',

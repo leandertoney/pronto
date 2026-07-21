@@ -21,6 +21,12 @@ const DEVICE_ENGLISH_RATE = 1.0;
 
 let cachedDeviceVoice: string | null | undefined;
 
+// Whatever's currently speaking (nova playback or the device-voice
+// fallback) registers a stopper here so stopSpeaking() can cut it off from
+// outside the speak call's own promise chain — e.g. the user tapping "I'm
+// finished" mid-sentence.
+let currentStopper: (() => void) | null = null;
+
 /** Prefer an es-MX device voice, fall back to es-ES, then any es-* voice. */
 export async function resolveSpanishVoice(): Promise<string | null> {
   if (cachedDeviceVoice !== undefined) return cachedDeviceVoice;
@@ -38,12 +44,17 @@ export async function resolveSpanishVoice(): Promise<string | null> {
 
 function speakDevice(text: string, options: Speech.SpeechOptions): Promise<void> {
   return new Promise((resolve) => {
+    const settle = () => {
+      currentStopper = null;
+      resolve();
+    };
     Speech.speak(text, {
       ...options,
-      onDone: () => resolve(),
-      onStopped: () => resolve(),
-      onError: () => resolve(),
+      onDone: settle,
+      onStopped: settle,
+      onError: settle,
     });
+    currentStopper = () => Speech.stop();
   });
 }
 
@@ -55,6 +66,7 @@ function playFile(uri: string, rate: number): Promise<void> {
     const finish = () => {
       if (settled) return;
       settled = true;
+      currentStopper = null;
       try {
         player.remove();
       } catch {
@@ -73,6 +85,7 @@ function playFile(uri: string, rate: number): Promise<void> {
         finish();
       }
     });
+    currentStopper = finish;
     player.play();
   });
 }
@@ -114,6 +127,15 @@ export async function speakSpanish(text: string, slow = false): Promise<void> {
 
 export async function speakEnglish(text: string): Promise<void> {
   await speakNova(text, 'en', false);
+}
+
+/**
+ * Cut off whatever's currently speaking, if anything. Used when the user
+ * explicitly ends the conversation mid-line — without this, the voice keeps
+ * talking after the screen has already navigated away.
+ */
+export function stopSpeaking(): void {
+  currentStopper?.();
 }
 
 /**
