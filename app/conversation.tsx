@@ -26,6 +26,7 @@ import {ListenBars, ListenBarsState} from '../src/components/ListenBars';
 import {ScoreRing} from '../src/components/ScoreRing';
 import {ScreenHeader} from '../src/components/ScreenHeader';
 import {recordSession} from '../src/lib/sessionStore';
+import {initialVadState, vadStep, VadState} from '../src/lib/vad';
 import {speakSpanish, stopSpeaking} from '../src/services/tts';
 import {transcribe} from '../src/services/whisper';
 import {colors} from '../src/theme';
@@ -43,19 +44,13 @@ import {
  * sent. The mic button is a "send now" override; auto-listen can be toggled
  * off for tap-to-talk.
  *
- * VAD is ADAPTIVE, not fixed-dB (2026-07-19 fix): a hardcoded -35/-40dB
- * threshold assumes a specific noise floor that doesn't hold across
- * phones/rooms — when ambient noise sits above -40dB, silence is never
- * detected and every utterance runs to the MAX_UTTERANCE_MS hard cap (this
- * is what happened: reports of ~25-30s listens match MAX_UTTERANCE_MS
- * exactly, meaning speech was detected but silence never was). Instead: the
- * first CALIBRATION_MS of each recording samples the room's actual floor,
- * then speech/silence are judged relative to that floor, not an absolute.
+ * VAD decision logic lives in src/lib/vad.ts as a pure, unit-tested step
+ * function (tested against real captured metering traces). The floor ADAPTS
+ * upward toward sustained background noise, so a noisy room whose ambient
+ * level sits above the initial calibrated floor still gets silence detected
+ * instead of running every utterance to the MAX_UTTERANCE_MS hard cap. This
+ * effect just feeds samples in and reacts to its 'end' decision.
  */
-const CALIBRATION_MS = 300; // sample the room's noise floor before judging speech/silence
-const SPEECH_MARGIN_DB = 12; // this far above the calibrated floor = speech
-const SILENCE_MARGIN_DB = 6; // back down to this close to the floor = silence
-const SILENCE_HOLD_MS = 1000; // quiet this long after speech -> send (was 1300, trimmed for latency; needs device tuning if it starts cutting people off mid-pause)
 const NO_SPEECH_TIMEOUT_MS = 8000; // no speech at all -> restart listening
 const MAX_UTTERANCE_MS = 25000; // hard cap per utterance
 const MIN_UTTERANCE_MS = 500; // shorter than this -> discard (avoids blips)
@@ -91,9 +86,7 @@ export default function Conversation() {
   const busyRef = useRef(false); // guards start/stop races
   const listenStartRef = useRef(0);
   const sessionStartRef = useRef(0); // when this conversation screen was entered, for recordSession on the way out
-  const speechDetectedRef = useRef(false);
-  const silenceSinceRef = useRef<number | null>(null);
-  const noiseFloorRef = useRef<number | null>(null); // calibrated per-listen, not a fixed dB constant
+  const vadStateRef = useRef<VadState>(initialVadState); // adaptive VAD state, reset per listen
   const lastMeteringLogRef = useRef(0); // throttles the diagnostic metering log
   // Chips show whenever we're in the choosing phase. (Choosing no longer
   // auto-records, so there's no "recording but was choosing" case to cover.)
@@ -147,9 +140,7 @@ export default function Conversation() {
       await recorder.prepareToRecordAsync();
       recorder.record();
       listenStartRef.current = Date.now();
-      speechDetectedRef.current = false;
-      silenceSinceRef.current = null;
-      noiseFloorRef.current = null;
+      vadStateRef.current = initialVadState;
       setRecording();
     } finally {
       busyRef.current = false;
@@ -165,7 +156,7 @@ export default function Conversation() {
         // live phase (which is already 'recording' by the time this runs).
         const wasRepeat = preRecordPhase === 'awaiting-repeat' && currentTarget !== null;
         const duration = Date.now() - listenStartRef.current;
-        const heardSpeech = speechDetectedRef.current;
+        const heardSpeech = vadStateRef.current.speechDetected;
         await recorder.stop();
         await exitRecordingMode();
         const uri = recorder.uri;
@@ -222,9 +213,8 @@ export default function Conversation() {
     return undefined;
   }, [phase, autoListen, micPermission, startListening]);
 
-  // Voice activity detection: watch metering while recording. Adaptive —
-  // see the block comment at the top of the file for why this isn't a fixed
-  // dB threshold anymore.
+  // Voice activity detection: feed each metering sample to the pure adaptive
+  // VAD (src/lib/vad.ts) and react to its end decision.
   useEffect(() => {
     if (phase !== 'recording' || !recorderState.isRecording) return;
     const now = Date.now();
@@ -232,41 +222,30 @@ export default function Conversation() {
     const level = recorderState.metering;
 
     if (typeof level === 'number') {
+      const {state, decision} = vadStep(vadStateRef.current, level, elapsed, now);
+      vadStateRef.current = state;
+
       // Diagnostic: throttled so it doesn't flood the log, but enough to see
       // the actual metering range this device/room produces if VAD misbehaves.
       if (now - lastMeteringLogRef.current > 400) {
         lastMeteringLogRef.current = now;
         console.log(
-          `[vad] t=${elapsed}ms level=${level.toFixed(1)}dB floor=${noiseFloorRef.current?.toFixed(1) ?? 'calibrating'} speech=${speechDetectedRef.current}`,
+          `[vad] t=${elapsed}ms level=${level.toFixed(1)}dB floor=${state.floor?.toFixed(1) ?? 'calibrating'} speech=${state.speechDetected}`,
         );
       }
 
-      if (elapsed < CALIBRATION_MS) {
-        // Still calibrating: track the quietest level seen as the floor.
-        noiseFloorRef.current =
-          noiseFloorRef.current === null ? level : Math.min(noiseFloorRef.current, level);
-      } else {
-        const floor = noiseFloorRef.current ?? level;
-        if (level > floor + SPEECH_MARGIN_DB) {
-          speechDetectedRef.current = true;
-          silenceSinceRef.current = null;
-        } else if (speechDetectedRef.current && level < floor + SILENCE_MARGIN_DB) {
-          if (silenceSinceRef.current === null) {
-            silenceSinceRef.current = now;
-          } else if (now - silenceSinceRef.current >= SILENCE_HOLD_MS) {
-            finishListening(true);
-            return;
-          }
-        }
+      if (decision === 'end') {
+        finishListening(true);
+        return;
       }
     }
 
-    if (!speechDetectedRef.current && elapsed >= NO_SPEECH_TIMEOUT_MS) {
+    if (!vadStateRef.current.speechDetected && elapsed >= NO_SPEECH_TIMEOUT_MS) {
       // Heard nothing — recycle the listener so we don't record forever.
       finishListening(false);
     } else if (elapsed >= MAX_UTTERANCE_MS) {
       console.warn('[vad] hit MAX_UTTERANCE_MS hard cap — silence was never detected');
-      finishListening(speechDetectedRef.current);
+      finishListening(vadStateRef.current.speechDetected);
     }
   }, [phase, recorderState, finishListening]);
 
