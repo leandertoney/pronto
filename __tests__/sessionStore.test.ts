@@ -1,7 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
+  BACKFILL_ESTIMATED_MINUTES,
   ConversationSession,
+  backfillMissingSessions,
+  backfillSessionsFromPhrases,
   bestDayThisWeek,
   clearSessions,
   currentWeek,
@@ -184,5 +187,70 @@ describe('daysActiveThisMonth', () => {
       {date: dateKey(NOW - 40 * DAY_MS), minutes: 5}, // different month
     ];
     expect(daysActiveThisMonth(sessions, NOW)).toBe(2);
+  });
+});
+
+describe('backfillMissingSessions (pure)', () => {
+  it('adds a session for each distinct active day with no existing record', () => {
+    const day1 = new Date(2026, 6, 10, 9).getTime();
+    const day2 = new Date(2026, 6, 12, 18).getTime();
+    const result = backfillMissingSessions([], [day1, day2]);
+    expect(result).toHaveLength(2);
+    expect(result.map((s) => s.date).sort()).toEqual(['2026-07-10', '2026-07-12']);
+    expect(result.every((s) => s.minutes === BACKFILL_ESTIMATED_MINUTES)).toBe(true);
+  });
+
+  it('collapses multiple timestamps on the same day into one session', () => {
+    const morning = new Date(2026, 6, 10, 9).getTime();
+    const evening = new Date(2026, 6, 10, 21).getTime();
+    const result = backfillMissingSessions([], [morning, evening]);
+    expect(result).toHaveLength(1);
+    expect(result[0].minutes).toBe(BACKFILL_ESTIMATED_MINUTES);
+  });
+
+  it('never touches a day that already has a record', () => {
+    const existing: ConversationSession[] = [{date: '2026-07-10', minutes: 42}];
+    const sameDay = new Date(2026, 6, 10, 9).getTime();
+    const result = backfillMissingSessions(existing, [sameDay]);
+    expect(result).toHaveLength(1);
+    expect(result[0].minutes).toBe(42); // real minutes untouched, no fake minutes added
+  });
+
+  it('only fills the genuinely-missing days when some already exist', () => {
+    const existing: ConversationSession[] = [{date: '2026-07-10', minutes: 42}];
+    const existingDay = new Date(2026, 6, 10, 9).getTime();
+    const newDay = new Date(2026, 6, 11, 9).getTime();
+    const result = backfillMissingSessions(existing, [existingDay, newDay]);
+    expect(result).toHaveLength(2);
+    expect(result.find((s) => s.date === '2026-07-10')?.minutes).toBe(42);
+    expect(result.find((s) => s.date === '2026-07-11')?.minutes).toBe(BACKFILL_ESTIMATED_MINUTES);
+  });
+
+  it('is idempotent: re-running over its own output adds nothing', () => {
+    const day = new Date(2026, 6, 10, 9).getTime();
+    const once = backfillMissingSessions([], [day]);
+    const twice = backfillMissingSessions(once, [day]);
+    expect(twice).toEqual(once);
+  });
+});
+
+describe('backfillSessionsFromPhrases (persisted)', () => {
+  it('writes backfilled days and does not double up on a second run', async () => {
+    const day = new Date(2026, 6, 10, 9).getTime();
+    await backfillSessionsFromPhrases([day]);
+    const afterFirst = await loadSessions();
+    expect(afterFirst).toHaveLength(1);
+
+    await backfillSessionsFromPhrases([day]);
+    const afterSecond = await loadSessions();
+    expect(afterSecond).toEqual(afterFirst);
+  });
+
+  it('leaves a pre-existing real session untouched', async () => {
+    await recordSession(new Date(2026, 6, 10, 9).getTime(), 30);
+    await backfillSessionsFromPhrases([new Date(2026, 6, 10, 15).getTime()]);
+    const sessions = await loadSessions();
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].minutes).toBe(30);
   });
 });

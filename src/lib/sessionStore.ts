@@ -64,6 +64,60 @@ export async function clearSessions(): Promise<void> {
   await AsyncStorage.removeItem(STORAGE_KEY);
 }
 
+/** Flat minutes estimate for a backfilled historical day. The DAY is real (a phrase was learned then); the minute count is an estimate, so it's kept modest and uniform (tier 1 on the heatmap). */
+export const BACKFILL_ESTIMATED_MINUTES = 5;
+
+/**
+ * Derive session records for past days the user was active but that predate
+ * session tracking, WITHOUT touching any day that already has a record.
+ *
+ * `activityTimestamps` are real timestamps of past activity (in practice,
+ * phrase `learnedAt` values). Each distinct calendar day among them that
+ * has no existing session gets one backfilled session at a modest estimated
+ * minute count. Days that already have a real (or previously-backfilled)
+ * record are left exactly as they are.
+ *
+ * Fill-missing-only makes this idempotent by construction: running it twice
+ * adds nothing the second time, and it can never inflate a real session's
+ * minutes. Returns the FULL merged list (existing + any new backfilled
+ * entries), unsorted.
+ */
+export function backfillMissingSessions(
+  existing: ConversationSession[],
+  activityTimestamps: number[],
+): ConversationSession[] {
+  const existingDays = new Set(existing.map((s) => s.date));
+  const daysToAdd = new Set<string>();
+  for (const ts of activityTimestamps) {
+    const key = dateKey(ts);
+    if (!existingDays.has(key)) {
+      daysToAdd.add(key);
+    }
+  }
+  const added: ConversationSession[] = Array.from(daysToAdd).map((date) => ({
+    date,
+    minutes: BACKFILL_ESTIMATED_MINUTES,
+  }));
+  return [...existing, ...added];
+}
+
+/**
+ * Fill in session records for past active days (from phrase-learned
+ * timestamps) that predate session tracking. Idempotent — safe to call more
+ * than once; only ever adds days that have no record, never modifies an
+ * existing day.
+ */
+export async function backfillSessionsFromPhrases(
+  activityTimestamps: number[],
+): Promise<ConversationSession[]> {
+  const existing = await loadSessions();
+  const next = backfillMissingSessions(existing, activityTimestamps);
+  if (next.length !== existing.length) {
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  }
+  return next;
+}
+
 export interface WeekDay {
   date: string; // YYYY-MM-DD
   minutes: number; // 0 if no session that day
