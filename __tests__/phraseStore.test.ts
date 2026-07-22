@@ -4,6 +4,7 @@ import {
   clearPhrases,
   loadPhrases,
   removePhrase,
+  rustiestPhrase,
   savePhrase,
   touchPhrase,
 } from '../src/lib/phraseStore';
@@ -112,5 +113,30 @@ describe('phraseStore', () => {
     await savePhrase(PHRASE);
     await clearPhrases();
     expect(await loadPhrases()).toEqual([]);
+  });
+});
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+describe('rustiestPhrase', () => {
+  it('returns null for an empty list', () => {
+    expect(rustiestPhrase([], Date.now())).toBeNull();
+  });
+
+  it('returns null when the least-recently-said phrase is still recent', () => {
+    const now = 10_000_000;
+    const phrases = [{...PHRASE, lastSaidAt: now - 1 * DAY_MS}];
+    expect(rustiestPhrase(phrases, now)).toBeNull();
+  });
+
+  it('returns the phrase said longest ago once past the threshold', () => {
+    const now = 10 * DAY_MS;
+    const phrases = [
+      {...PHRASE, spanish: 'Fresh one', lastSaidAt: now - 1 * DAY_MS},
+      {...PHRASE, spanish: 'Rusty one', lastSaidAt: now - 8 * DAY_MS},
+    ];
+    const result = rustiestPhrase(phrases, now);
+    expect(result?.phrase.spanish).toBe('Rusty one');
+    expect(result?.daysSinceSaid).toBe(8);
   });
 });

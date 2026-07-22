@@ -70,39 +70,52 @@ export interface WeekDay {
   isToday: boolean;
 }
 
+/** Midnight (local) of the Monday starting the calendar week that contains `nowMs`. */
+function startOfWeek(nowMs: number): Date {
+  const d = new Date(nowMs);
+  d.setHours(0, 0, 0, 0);
+  // getDay(): 0=Sun..6=Sat. Shift so Monday is the start (Sunday counts as 6 days after Monday).
+  const daysSinceMonday = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - daysSinceMonday);
+  return d;
+}
+
 /**
- * The last 7 calendar days ending today, oldest first (Mon-Sun ordering
- * isn't assumed — this is a rolling 7-day window, not a fixed week grid,
- * so "today" always lands on the right and there's no Monday-vs-Sunday
- * start-of-week question to get wrong).
+ * The current calendar week, Monday through Sunday, as 7 WeekDay entries.
+ * This is a FIXED week (per momentum-dictionary-mockups.html: "the week
+ * resets softly", plus the mockup's fixed M-T-W-T-F-S-S label row), so it
+ * resets every Monday rather than sliding — early in the week it correctly
+ * shows fewer days.
  */
-export function lastSevenDays(sessions: ConversationSession[], nowMs: number): WeekDay[] {
+export function currentWeek(sessions: ConversationSession[], nowMs: number): WeekDay[] {
   const byDate = new Map(sessions.map((s) => [s.date, s.minutes]));
   const todayKey = dateKey(nowMs);
+  const monday = startOfWeek(nowMs);
   const days: WeekDay[] = [];
-  for (let i = 6; i >= 0; i--) {
-    const dayMs = nowMs - i * 24 * 60 * 60 * 1000;
-    const key = dateKey(dayMs);
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    const key = dateKey(d.getTime());
     days.push({date: key, minutes: byDate.get(key) ?? 0, isToday: key === todayKey});
   }
   return days;
 }
 
-/** How many of the last 7 days had any session at all. */
+/** How many days this calendar week (Mon-Sun) had any session at all. */
 export function daysActiveThisWeek(sessions: ConversationSession[], nowMs: number): number {
-  return lastSevenDays(sessions, nowMs).filter((d) => d.minutes > 0).length;
+  return currentWeek(sessions, nowMs).filter((d) => d.minutes > 0).length;
 }
 
-/** Total minutes talked across the last 7 days. */
+/** Total minutes talked this calendar week (Mon-Sun). */
 export function minutesThisWeek(sessions: ConversationSession[], nowMs: number): number {
-  return lastSevenDays(sessions, nowMs).reduce((sum, d) => sum + d.minutes, 0);
+  return currentWeek(sessions, nowMs).reduce((sum, d) => sum + d.minutes, 0);
 }
 
 const WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /** The weekday name (e.g. "Fri") with the most minutes talked this week, or null if the week was empty. */
 export function bestDayThisWeek(sessions: ConversationSession[], nowMs: number): string | null {
-  const days = lastSevenDays(sessions, nowMs).filter((d) => d.minutes > 0);
+  const days = currentWeek(sessions, nowMs).filter((d) => d.minutes > 0);
   if (days.length === 0) return null;
   const best = days.reduce((a, b) => (b.minutes > a.minutes ? b : a));
   const [year, month, day] = best.date.split('-').map(Number);

@@ -82,6 +82,25 @@ export default function Profile() {
           />
         </View>
 
+        {phrases.length > 0 && (
+          <Pressable
+            style={({pressed}) => [styles.weekLinkCard, pressed && styles.pressed]}
+            onPress={() => router.push('/week')}
+          >
+            <View>
+              <AppText variant="title" style={styles.weekLinkTitle}>
+                My week
+              </AppText>
+              <AppText variant="caption" color={colors.textSecondary}>
+                Presence, minutes talked, no streaks
+              </AppText>
+            </View>
+            <AppText variant="button" color={colors.accent}>
+              →
+            </AppText>
+          </Pressable>
+        )}
+
         {loaded && phrases.length === 0 && (
           <View style={styles.emptyState}>
             <AppText variant="title">Nothing to show yet</AppText>
@@ -367,6 +386,20 @@ const styles = StyleSheet.create({
   wordSeenText: {
     fontSize: 10,
     fontWeight: '700',
+  },
+  weekLinkCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#EADFCB',
+  },
+  weekLinkTitle: {
+    fontSize: 15,
+    marginBottom: 2,
   },
   linkRow: {
     alignItems: 'center',

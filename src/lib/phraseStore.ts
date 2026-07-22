@@ -80,3 +80,22 @@ export async function removePhrase(spanish: string): Promise<LearnedPhrase[]> {
 export async function clearPhrases(): Promise<void> {
   await AsyncStorage.removeItem(STORAGE_KEY);
 }
+
+const RUSTY_THRESHOLD_DAYS = 3;
+
+/**
+ * The phrase that's gone the longest without being said, if it's been long
+ * enough to matter — backs the "getting rusty" card. Returns null when
+ * there are no phrases yet, or the least-recently-said one is still
+ * recent, so the card doesn't nag about a phrase from an hour ago.
+ */
+export function rustiestPhrase(
+  phrases: LearnedPhrase[],
+  nowMs: number,
+): {phrase: LearnedPhrase; daysSinceSaid: number} | null {
+  if (phrases.length === 0) return null;
+  const oldest = phrases.reduce((a, b) => (b.lastSaidAt < a.lastSaidAt ? b : a));
+  const daysSinceSaid = Math.floor((nowMs - oldest.lastSaidAt) / (24 * 60 * 60 * 1000));
+  if (daysSinceSaid < RUSTY_THRESHOLD_DAYS) return null;
+  return {phrase: oldest, daysSinceSaid};
+}
