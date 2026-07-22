@@ -9,7 +9,7 @@ import {PrimaryButton} from '../src/components/PrimaryButton';
 import {ScoreRing, scoreColorFor} from '../src/components/ScoreRing';
 import {ScreenHeader} from '../src/components/ScreenHeader';
 import {LearnedPhrase, loadPhrases} from '../src/lib/phraseStore';
-import {DictionaryWord, groupWordsAlphabetically, loadWords} from '../src/lib/wordStore';
+import {DictionaryWord, loadWords} from '../src/lib/wordStore';
 import {speakSpanish, stopSpeaking} from '../src/services/tts';
 import {colors} from '../src/theme';
 
@@ -57,8 +57,6 @@ export default function Profile() {
     phrases.length === 0
       ? null
       : Math.round(phrases.reduce((sum, p) => sum + p.bestScore, 0) / phrases.length);
-
-  const wordGroups = groupWordsAlphabetically(words);
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -129,25 +127,22 @@ export default function Profile() {
         )}
 
         {words.length > 0 && (
-          <Section title="My dictionary" accent={colors.sunshine}>
-            {wordGroups.map((group) => (
-              <View key={group.letter} style={styles.letterGroup}>
-                <AppText variant="caption" color={colors.textSecondary} style={styles.letterHeader}>
-                  {group.letter}
-                </AppText>
-                <View style={styles.wordGrid}>
-                  {group.words.map((w) => (
-                    <WordChip
-                      key={w.word.toLowerCase()}
-                      word={w}
-                      isPlaying={playing === w.word}
-                      onPlay={() => play(w.word)}
-                    />
-                  ))}
-                </View>
-              </View>
-            ))}
-          </Section>
+          <Pressable
+            style={({pressed}) => [styles.weekLinkCard, pressed && styles.pressed]}
+            onPress={() => router.push('/dictionary')}
+          >
+            <View>
+              <AppText variant="title" style={styles.weekLinkTitle}>
+                My dictionary
+              </AppText>
+              <AppText variant="caption" color={colors.textSecondary}>
+                {words.length} {words.length === 1 ? 'word' : 'words'}, searchable
+              </AppText>
+            </View>
+            <AppText variant="button" color={colors.accent}>
+              →
+            </AppText>
+          </Pressable>
         )}
 
         {phrases.length > 0 && (
@@ -238,37 +233,6 @@ function PracticeRow({
   );
 }
 
-function WordChip({
-  word,
-  isPlaying,
-  onPlay,
-}: {
-  word: DictionaryWord;
-  isPlaying: boolean;
-  onPlay: () => void;
-}) {
-  return (
-    <Pressable
-      style={({pressed}) => [styles.wordChip, (pressed || isPlaying) && styles.wordChipActive]}
-      onPress={onPlay}
-    >
-      <AppText variant="title" color={colors.spanishText} style={styles.wordSpanish}>
-        {word.word}
-      </AppText>
-      <AppText variant="caption" color={colors.textSecondary} style={styles.wordMeaning}>
-        {word.meaning}
-      </AppText>
-      {word.timesSeen > 1 && (
-        <View style={styles.wordSeenBadge}>
-          <AppText variant="caption" color={colors.textPrimary} style={styles.wordSeenText}>
-            ×{word.timesSeen}
-          </AppText>
-        </View>
-      )}
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -340,52 +304,6 @@ const styles = StyleSheet.create({
   },
   playHint: {
     fontSize: 15,
-  },
-  letterGroup: {
-    gap: 6,
-    marginBottom: 10,
-  },
-  letterHeader: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  wordGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 7,
-  },
-  wordChip: {
-    backgroundColor: colors.surface,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderWidth: 1,
-    borderColor: '#EADFCB',
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  wordChipActive: {
-    borderColor: colors.sunshine,
-    backgroundColor: colors.englishBubble,
-  },
-  wordSpanish: {
-    fontSize: 13,
-  },
-  wordMeaning: {
-    fontSize: 10.5,
-    marginLeft: 4,
-  },
-  wordSeenBadge: {
-    backgroundColor: colors.sunshine,
-    borderRadius: 999,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    marginLeft: 5,
-  },
-  wordSeenText: {
-    fontSize: 10,
-    fontWeight: '700',
   },
   weekLinkCard: {
     flexDirection: 'row',

@@ -3,10 +3,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   clearWords,
   DictionaryWord,
+  filterWords,
   groupWordsAlphabetically,
   loadWords,
   recordWords,
   removeWord,
+  wordMatchesSearch,
+  wordStrength,
 } from '../src/lib/wordStore';
 
 beforeEach(async () => {
@@ -150,5 +153,82 @@ describe('groupWordsAlphabetically', () => {
   it('preserves original spelling in the grouped output', () => {
     const groups = groupWordsAlphabetically([word('Café')]);
     expect(groups[0].words[0].word).toBe('Café');
+  });
+});
+
+describe('wordStrength', () => {
+  it('returns null when no source phrase has a saved score', () => {
+    const w = word('café', {sourcePhrases: ['Quiero café']});
+    expect(wordStrength(w, new Map())).toBeNull();
+  });
+
+  it('returns the score of the single source phrase', () => {
+    const w = word('café', {sourcePhrases: ['Quiero café']});
+    expect(wordStrength(w, new Map([['Quiero café', 72]]))).toBe(72);
+  });
+
+  it('returns the BEST score across multiple source phrases', () => {
+    const w = word('café', {sourcePhrases: ['A', 'B', 'C']});
+    const scores = new Map([['A', 40], ['B', 91], ['C', 60]]);
+    expect(wordStrength(w, scores)).toBe(91);
+  });
+
+  it('ignores source phrases with no saved score, using the ones that have', () => {
+    const w = word('café', {sourcePhrases: ['Scored', 'Unscored']});
+    expect(wordStrength(w, new Map([['Scored', 55]]))).toBe(55);
+  });
+});
+
+describe('wordMatchesSearch', () => {
+  it('matches everything on an empty query', () => {
+    expect(wordMatchesSearch(word('café', {meaning: 'coffee'}), '')).toBe(true);
+  });
+
+  it('matches the Spanish word ignoring accents and case', () => {
+    expect(wordMatchesSearch(word('café', {meaning: 'coffee'}), 'CAFE')).toBe(true);
+  });
+
+  it('matches the English meaning', () => {
+    expect(wordMatchesSearch(word('café', {meaning: 'coffee'}), 'coff')).toBe(true);
+  });
+
+  it('does not match unrelated text', () => {
+    expect(wordMatchesSearch(word('café', {meaning: 'coffee'}), 'gym')).toBe(false);
+  });
+});
+
+describe('filterWords', () => {
+  const words = [
+    word('cafe', {meaning: 'coffee', firstSeenAt: 100, sourcePhrases: ['P-strong']}),
+    word('gimnasio', {meaning: 'gym', firstSeenAt: 300, sourcePhrases: ['P-weak']}),
+    word('mananas', {meaning: 'mornings', firstSeenAt: 200, sourcePhrases: ['P-none']}),
+  ];
+  const scores = new Map([['P-strong', 95], ['P-weak', 40]]);
+
+  it('all: returns the searched list unchanged in order', () => {
+    expect(filterWords(words, '', 'all', scores).map((w) => w.word)).toEqual([
+      'cafe', 'gimnasio', 'mananas',
+    ]);
+  });
+
+  it('needs-practice: only words whose best score is below threshold', () => {
+    const result = filterWords(words, '', 'needs-practice', scores);
+    // cafe (95) excluded, gimnasio (40) included, mananas (no score -> null) excluded.
+    expect(result.map((w) => w.word)).toEqual(['gimnasio']);
+  });
+
+  it('strongest: sorts by descending strength, unknown-strength last', () => {
+    const result = filterWords(words, '', 'strongest', scores);
+    expect(result.map((w) => w.word)).toEqual(['cafe', 'gimnasio', 'mananas']);
+  });
+
+  it('recent: sorts by descending firstSeenAt', () => {
+    const result = filterWords(words, '', 'recent', scores);
+    expect(result.map((w) => w.word)).toEqual(['gimnasio', 'mananas', 'cafe']);
+  });
+
+  it('applies the search query before the filter', () => {
+    const result = filterWords(words, 'gym', 'all', scores);
+    expect(result.map((w) => w.word)).toEqual(['gimnasio']);
   });
 });

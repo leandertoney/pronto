@@ -90,6 +90,28 @@ export async function clearWords(): Promise<void> {
   await AsyncStorage.removeItem(STORAGE_KEY);
 }
 
+/**
+ * A word's strength = the best score among the phrases it was taught in.
+ * `phraseScores` maps a phrase's Spanish text to its best score (from
+ * phraseStore). Returns null when none of a word's source phrases have a
+ * saved score yet (e.g. a word taught but never repeated/scored) — that's
+ * "unknown strength", a distinct state from a low score, so the UI can show
+ * a neutral bar rather than painting a brand-new word as failing.
+ */
+export function wordStrength(
+  word: DictionaryWord,
+  phraseScores: Map<string, number>,
+): number | null {
+  let best: number | null = null;
+  for (const phrase of word.sourcePhrases) {
+    const score = phraseScores.get(phrase);
+    if (score !== undefined && (best === null || score > best)) {
+      best = score;
+    }
+  }
+  return best;
+}
+
 export interface WordGroup {
   letter: string;
   words: DictionaryWord[];
@@ -113,4 +135,47 @@ export function groupWordsAlphabetically(words: DictionaryWord[]): WordGroup[] {
     }
   }
   return groups;
+}
+
+export type DictionaryFilter = 'all' | 'needs-practice' | 'strongest' | 'recent';
+
+const NEEDS_PRACTICE_THRESHOLD = 80;
+
+/** Accent/case-insensitive substring match over a word's spelling and its English meaning. */
+export function wordMatchesSearch(word: DictionaryWord, query: string): boolean {
+  const q = normalize(query);
+  if (!q) return true;
+  return normalize(word.word).includes(q) || word.meaning.toLowerCase().includes(query.trim().toLowerCase());
+}
+
+/**
+ * Apply the dictionary's search box + filter chip to the word list.
+ * `phraseScores` (phrase text -> best score) drives the strength-based
+ * filters. NOTE: "recent" sorts by firstSeenAt — the app has no
+ * last-*reviewed* timestamp per word, so "recent" means recently first
+ * learned, not recently practiced.
+ */
+export function filterWords(
+  words: DictionaryWord[],
+  query: string,
+  filter: DictionaryFilter,
+  phraseScores: Map<string, number>,
+): DictionaryWord[] {
+  const searched = words.filter((w) => wordMatchesSearch(w, query));
+  switch (filter) {
+    case 'needs-practice':
+      return searched.filter((w) => {
+        const s = wordStrength(w, phraseScores);
+        return s !== null && s < NEEDS_PRACTICE_THRESHOLD;
+      });
+    case 'strongest':
+      return [...searched].sort(
+        (a, b) => (wordStrength(b, phraseScores) ?? -1) - (wordStrength(a, phraseScores) ?? -1),
+      );
+    case 'recent':
+      return [...searched].sort((a, b) => b.firstSeenAt - a.firstSeenAt);
+    case 'all':
+    default:
+      return searched;
+  }
 }
