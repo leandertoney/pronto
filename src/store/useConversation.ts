@@ -1,12 +1,12 @@
 import {create} from 'zustand';
 
-import {ChatMessage, getTutorReply} from '../services/claude';
+import {ChatMessage, getPhrase, getPhraseDetails} from '../services/claude';
 import {speakEnglish, speakSpanish} from '../services/tts';
 import {transcribe} from '../services/whisper';
 import {savePhrase, loadPhrases} from '../lib/phraseStore';
 import {diffWords, scoreAttempt, tierForScore, WordHit} from '../lib/similarity';
 import {recordWords} from '../lib/wordStore';
-import {TutorReply} from '../lib/claudeJson';
+import {PhraseReply} from '../lib/claudeJson';
 
 /**
  * The core loop as a state machine:
@@ -111,14 +111,24 @@ const MOVING_ON_LINE: Bilingual = {
   es: '¡Buen esfuerzo! Vas a practicar esto más. ¡Sigamos!',
 };
 
-/** Feed a fresh phrase's per-word glosses into the personal dictionary. Best-effort — a storage hiccup shouldn't break the conversation. */
-async function recordReplyWords(reply: TutorReply): Promise<void> {
-  if (reply.words.length === 0) return;
-  try {
-    await recordWords(reply.words, Date.now(), reply.spanish_phrase);
-  } catch {
-    // Dictionary is a nice-to-have; conversation flow must not break on it.
-  }
+/**
+ * Fire-and-forget background half of the two-call split: fetch the coach
+ * line + word breakdown for a phrase the app has ALREADY spoken, and feed the
+ * words into the personal dictionary. Runs while the user hears/repeats the
+ * phrase, so its latency is hidden. Fully best-effort and touches ONLY the
+ * word store — never claudeHistory, currentTarget, phase, or error — so it's
+ * safe for it to resolve even after the user has moved on or left. A failure
+ * just means no dictionary words for this phrase, never a broken loop.
+ */
+function fetchDetailsAndRecordWords(history: ChatMessage[], reply: PhraseReply): void {
+  getPhraseDetails(history, reply)
+    .then((details) => {
+      if (details.words.length === 0) return;
+      return recordWords(details.words, Date.now(), reply.spanish_phrase);
+    })
+    .catch(() => {
+      // Dictionary is a nice-to-have; the phrase was already taught fine.
+    });
 }
 
 export const useConversation = create<ConversationState>((set, get) => ({
@@ -205,8 +215,10 @@ export const useConversation = create<ConversationState>((set, get) => ({
         ...get().claudeHistory,
         {role: 'user', content: `I'm doing this right now: "${english}". Teach me to say it in Spanish.`},
       ];
-      const reply = await getTutorReply(history);
-      await recordReplyWords(reply);
+      // FAST call: just the phrase, so we can speak it in ~1.5-2s instead of
+      // waiting for the full reply. Everything the speak->repeat->score loop
+      // needs comes from this call.
+      const reply = await getPhrase(history);
 
       set((s) => ({
         claudeHistory: [
@@ -234,10 +246,15 @@ export const useConversation = create<ConversationState>((set, get) => ({
         phase: 'speaking',
       }));
 
-      // Only the Spanish phrase is spoken and shown, not the coach line's
-      // full-sentence meaning — the user already knows it (they just said
-      // it themselves in English), and the phrase card's englishMeaning
-      // subtitle already covers it in one line, not a whole second paragraph.
+      // Kick off the BACKGROUND call (coach line + word breakdown) now, so it
+      // runs while the user is hearing and repeating the phrase. It only
+      // writes to the dictionary — never conversation state — so it's safe if
+      // it resolves after the user has already moved on.
+      fetchDetailsAndRecordWords(history, reply);
+
+      // Only the Spanish phrase is spoken and shown; the meaning is on the
+      // card's englishMeaning subtitle, and the user already knows it (they
+      // just said it themselves in English).
       await speakSpanish(reply.spanish_phrase);
       await speakEnglish(YOUR_TURN_EN); // short "your turn" nudge, not silence
       set({phase: 'awaiting-repeat'});
@@ -370,8 +387,9 @@ export const useConversation = create<ConversationState>((set, get) => ({
           content: `Now EXTEND the phrase "${target.spanish}" by ${elementInstruction}, repeating the core phrase.`,
         },
       ];
-      const reply = await getTutorReply(history);
-      await recordReplyWords(reply);
+      // Same two-call split as the initial teach path: fast phrase call to
+      // speak quickly, background details call for the dictionary.
+      const reply = await getPhrase(history);
 
       set((s) => ({
         claudeHistory: [
@@ -395,10 +413,11 @@ export const useConversation = create<ConversationState>((set, get) => ({
         phase: 'speaking',
       }));
 
+      fetchDetailsAndRecordWords(history, reply);
+
       // Only the Spanish phrase is spoken and shown, same as the initial
       // teach path — the extended phrase's meaning stays readable on the
-      // card's englishMeaning subtitle instead of also being a spoken and
-      // written coach paragraph underneath.
+      // card's englishMeaning subtitle.
       await speakSpanish(reply.spanish_phrase);
       await speakEnglish(YOUR_TURN_EN); // short "your turn" nudge, not silence
       set({phase: 'awaiting-repeat'});

@@ -1,4 +1,9 @@
-import {extractJsonBlock, parseTutorReply} from '../src/lib/claudeJson';
+import {
+  extractJsonBlock,
+  parsePhraseDetails,
+  parsePhraseReply,
+  parseTutorReply,
+} from '../src/lib/claudeJson';
 
 const VALID = {
   spanish_phrase: 'Estoy trabajando en mi laptop',
@@ -123,5 +128,62 @@ describe('parseTutorReply', () => {
       }),
     );
     expect(reply.words).toEqual([{word: 'hola', meaning: 'hi'}]);
+  });
+});
+
+describe('parsePhraseReply (fast phrase-only call)', () => {
+  it('parses the phrase, meaning, and user translation', () => {
+    const reply = parsePhraseReply(
+      JSON.stringify({
+        spanish_phrase: 'Estoy bebiendo café',
+        english_meaning: "I'm drinking coffee",
+        user_input_spanish: 'Estoy tomando café',
+      }),
+    );
+    expect(reply.spanish_phrase).toBe('Estoy bebiendo café');
+    expect(reply.english_meaning).toBe("I'm drinking coffee");
+    expect(reply.user_input_spanish).toBe('Estoy tomando café');
+  });
+
+  it('defaults the optional fields but requires spanish_phrase', () => {
+    const reply = parsePhraseReply(JSON.stringify({spanish_phrase: 'Hola'}));
+    expect(reply.spanish_phrase).toBe('Hola');
+    expect(reply.english_meaning).toBe('');
+    expect(reply.user_input_spanish).toBe('');
+  });
+
+  it('throws when spanish_phrase is missing or empty', () => {
+    expect(() => parsePhraseReply(JSON.stringify({english_meaning: 'x'}))).toThrow();
+    expect(() => parsePhraseReply(JSON.stringify({spanish_phrase: '   '}))).toThrow();
+  });
+
+  it('strips fences like the full parser', () => {
+    const reply = parsePhraseReply('```json\n{"spanish_phrase":"Hola"}\n```');
+    expect(reply.spanish_phrase).toBe('Hola');
+  });
+});
+
+describe('parsePhraseDetails (background second call)', () => {
+  it('parses coach lines and words', () => {
+    const details = parsePhraseDetails(
+      JSON.stringify({
+        coach_line_english: 'Your turn!',
+        coach_line_spanish: '¡Te toca!',
+        words: [{word: 'café', meaning: 'coffee'}],
+      }),
+    );
+    expect(details.coach_line_english).toBe('Your turn!');
+    expect(details.words).toEqual([{word: 'café', meaning: 'coffee'}]);
+  });
+
+  it('degrades gracefully to empty on missing fields (never throws on shape)', () => {
+    const details = parsePhraseDetails(JSON.stringify({}));
+    expect(details.coach_line_english).toBe('');
+    expect(details.coach_line_spanish).toBe('');
+    expect(details.words).toEqual([]);
+  });
+
+  it('still throws on genuinely unparseable JSON', () => {
+    expect(() => parsePhraseDetails('not json at all {')).toThrow();
   });
 });
