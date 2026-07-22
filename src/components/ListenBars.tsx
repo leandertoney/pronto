@@ -7,6 +7,8 @@ export type ListenBarsState = 'rippling' | 'breathing' | 'frozen' | 'hidden';
 
 interface ListenBarsProps {
   state: ListenBarsState;
+  /** Live 0..1 mic level, used only in the 'rippling' (recording) state so the bars react to actual audio. Ignored otherwise. */
+  audioLevel?: number;
 }
 
 const BAR_COLORS = [
@@ -32,7 +34,7 @@ const MID_SCALE = 0.55; // frozen/reduced-motion resting height
  * Reduced motion: bars render frozen at MID_SCALE regardless of `state`,
  * except `hidden`, which still hides.
  */
-export function ListenBars({state}: ListenBarsProps) {
+export function ListenBars({state, audioLevel = 0}: ListenBarsProps) {
   const [reduceMotion, setReduceMotion] = useState(false);
   const scales = useRef(
     Array.from({length: BAR_COUNT}, () => new Animated.Value(MID_SCALE)),
@@ -77,21 +79,29 @@ export function ListenBars({state}: ListenBarsProps) {
       return () => loops.forEach((l) => l.stop());
     }
 
-    // rippling
-    const loops = scales.map((v, i) => {
-      const peak = 0.85 + (i % 3) * 0.15; // slight per-bar variation, not perfectly uniform
-      const duration = 300 + (i % 3) * 100; // 300-500ms per the spec
-      return Animated.loop(
-        Animated.sequence([
-          Animated.delay(i * 90),
-          Animated.timing(v, {toValue: peak, duration, useNativeDriver: true}),
-          Animated.timing(v, {toValue: MID_SCALE * 0.7, duration, useNativeDriver: true}),
-        ]),
-      );
-    });
-    loops.forEach((l) => l.start());
-    return () => loops.forEach((l) => l.stop());
+    // rippling is audio-driven — handled by the separate effect below so it
+    // reacts to the live level rather than running a canned loop here.
+    return undefined;
   }, [state, reduceMotion, scales]);
+
+  // Audio-reactive rippling: while recording, drive the bars from the live
+  // mic level so the user can SEE it's actually hearing them, not just a
+  // decorative loop. Each bar gets slight variation so it reads as a lively
+  // equalizer, not five identical bars. Skipped under reduced motion.
+  useEffect(() => {
+    if (state !== 'rippling' || reduceMotion) return;
+    scales.forEach((v, i) => {
+      // Per-bar variation: center bars react a touch stronger, and a small
+      // per-bar offset keeps them from moving in perfect lockstep.
+      const variation = 0.8 + ((i * 7) % 5) * 0.1;
+      const target = MID_SCALE * 0.6 + audioLevel * variation;
+      Animated.timing(v, {
+        toValue: Math.max(0.2, Math.min(1, target)),
+        duration: 110, // just under the ~120ms metering tick, so it keeps up smoothly
+        useNativeDriver: true,
+      }).start();
+    });
+  }, [state, reduceMotion, audioLevel, scales]);
 
   if (state === 'hidden') return null;
 

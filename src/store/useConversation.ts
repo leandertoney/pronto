@@ -50,7 +50,6 @@ interface ConversationState {
   retries: number;
   learnedCount: number;
   error: string | null;
-  hasTaughtNextCommands: boolean;
   preRecordPhase: Phase | null;
 
   startSession: () => Promise<void>;
@@ -74,9 +73,13 @@ const GREETING_ES = '¿Qué más, pues?';
 const GREETING_EN = 'What are you doing right now?';
 const NEW_TOPIC_ES = '¡Muy bien! ¿Qué más?';
 const NEW_TOPIC_EN = "What else are you up to?";
-const NEXT_COMMANDS_TEACH_EN =
-  'Quick tip: from here you can just talk to me. Say "continúa" to build on this, or "progreso" to see how you\'re doing.';
-const NEXT_COMMANDS_TEACH_ES = 'Continúa. Progreso.';
+// Short "your turn" nudge spoken right after a freshly-taught Spanish phrase,
+// so the moment doesn't fall into silence. Deliberately in ENGLISH, not
+// Spanish: a Spanish cue ("Te toca") back-to-back with the target phrase is
+// confusable — a learner might repeat the CUE instead of the phrase. English
+// is self-evidently not the thing to repeat. And kept to two words, not the
+// full coach paragraph that was cut earlier for friction.
+const YOUR_TURN_EN = 'Now you try';
 
 interface Bilingual {
   en: string;
@@ -124,7 +127,6 @@ export const useConversation = create<ConversationState>((set, get) => ({
   retries: 0,
   learnedCount: 0,
   error: null,
-  hasTaughtNextCommands: false,
   preRecordPhase: null,
 
   startSession: async () => {
@@ -184,9 +186,8 @@ export const useConversation = create<ConversationState>((set, get) => ({
     }
   },
 
-  // Shared with the "choosing" spoken-command path, which already has a
-  // transcript from its own command-recognition pass — this skips a second,
-  // redundant Whisper call on the same audio clip.
+  // Split out from handleEnglishRecording so the transcription step and the
+  // teach step are separable (the recording path transcribes, then calls this).
   handleEnglishText: async (english: string) => {
     try {
       const userEntryId = nextId();
@@ -236,6 +237,7 @@ export const useConversation = create<ConversationState>((set, get) => ({
       // it themselves in English), and the phrase card's englishMeaning
       // subtitle already covers it in one line, not a whole second paragraph.
       await speakSpanish(reply.spanish_phrase);
+      await speakEnglish(YOUR_TURN_EN); // short "your turn" nudge, not silence
       set({phase: 'awaiting-repeat'});
     } catch (e) {
       set({
@@ -307,12 +309,6 @@ export const useConversation = create<ConversationState>((set, get) => ({
 
         await speakEnglish(feedback.en);
         await speakSpanish(feedback.es);
-
-        if (!get().hasTaughtNextCommands) {
-          set({hasTaughtNextCommands: true});
-          await speakEnglish(NEXT_COMMANDS_TEACH_EN);
-          await speakSpanish(NEXT_COMMANDS_TEACH_ES);
-        }
 
         set({phase: 'choosing'});
       } else if (tier === 'close') {
@@ -402,6 +398,7 @@ export const useConversation = create<ConversationState>((set, get) => ({
       // card's englishMeaning subtitle instead of also being a spoken and
       // written coach paragraph underneath.
       await speakSpanish(reply.spanish_phrase);
+      await speakEnglish(YOUR_TURN_EN); // short "your turn" nudge, not silence
       set({phase: 'awaiting-repeat'});
     } catch (e) {
       set({

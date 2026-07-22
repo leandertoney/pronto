@@ -33,7 +33,29 @@ const HALLUCINATION_PHRASES = [
   'suscribete al canal',
   'nos vemos',
   'hasta luego',
+  'continua al siguiente video',
   'subtitulos realizados por la comunidad de amaraorg',
+];
+
+/**
+ * Caption-artifact fragments that betray a Whisper hallucination even inside a
+ * longer transcript. Unlike the whole-phrase list, these match as substrings,
+ * because the "...al siguiente video" family shows up appended to
+ * plausible-looking Spanish. Deliberate tradeoff: a genuine sentence that
+ * actually mentions "the next video" / "el siguiente video" would be dropped
+ * too. That's judged worth it \u2014 the hallucination was actively teaching the
+ * user phrases they never said \u2014 but it IS a known false-positive edge. Kept
+ * as narrow as possible ("next video", not bare "video") to minimize it.
+ */
+const HALLUCINATION_FRAGMENTS = [
+  'siguiente video', // "al siguiente video", "el siguiente video"
+  'next video',
+  'subscribe to the channel',
+  'suscribanse al canal',
+  'suscribete al canal',
+  'subtitulos realizados por',
+  'subtitles by',
+  'amaraorg',
 ];
 
 /** Lowercase, strip accents and punctuation, collapse whitespace. */
@@ -48,13 +70,18 @@ function normalize(text: string): string {
 }
 
 const HALLUCINATION_SET = new Set(HALLUCINATION_PHRASES.map(normalize));
+const HALLUCINATION_FRAGMENT_SET = HALLUCINATION_FRAGMENTS.map(normalize);
 
 /**
- * True if the transcript is (only) a known Whisper hallucination and should be
- * treated as if nothing was said.
+ * True if the transcript is a known Whisper hallucination and should be
+ * treated as if nothing was said. Matches either the WHOLE normalized
+ * transcript against known caption phrases, or a narrow set of caption-artifact
+ * FRAGMENTS anywhere in it (for the "...al siguiente video" family, which shows
+ * up appended to otherwise plausible-looking Spanish).
  */
 export function isHallucinatedTranscript(text: string): boolean {
   const normalized = normalize(text);
   if (normalized === '') return true;
-  return HALLUCINATION_SET.has(normalized);
+  if (HALLUCINATION_SET.has(normalized)) return true;
+  return HALLUCINATION_FRAGMENT_SET.some((frag) => normalized.includes(frag));
 }

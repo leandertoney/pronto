@@ -25,7 +25,6 @@ import {Card} from '../src/components/Card';
 import {ListenBars, ListenBarsState} from '../src/components/ListenBars';
 import {ScoreRing} from '../src/components/ScoreRing';
 import {ScreenHeader} from '../src/components/ScreenHeader';
-import {recognizeCommand} from '../src/lib/nextCommand';
 import {recordSession} from '../src/lib/sessionStore';
 import {speakSpanish, stopSpeaking} from '../src/services/tts';
 import {transcribe} from '../src/services/whisper';
@@ -83,7 +82,6 @@ export default function Conversation() {
   const setRecording = useConversation((s) => s.setRecording);
   const cancelRecording = useConversation((s) => s.cancelRecording);
   const handleEnglishRecording = useConversation((s) => s.handleEnglishRecording);
-  const handleEnglishText = useConversation((s) => s.handleEnglishText);
   const handleRepeatRecording = useConversation((s) => s.handleRepeatRecording);
   const chooseNext = useConversation((s) => s.chooseNext);
   const [pendingProgress, setPendingProgress] = useState(false);
@@ -97,13 +95,9 @@ export default function Conversation() {
   const silenceSinceRef = useRef<number | null>(null);
   const noiseFloorRef = useRef<number | null>(null); // calibrated per-listen, not a fixed dB constant
   const lastMeteringLogRef = useRef(0); // throttles the diagnostic metering log
-  // "choosing" auto-listen flips phase to 'recording' almost immediately,
-  // which would otherwise unmount the chips before they're readable. The
-  // store remembers what phase we were in before recording started
-  // (preRecordPhase), so this derives from the SAME authority cancelRecording
-  // uses to decide where to return — no parallel state to drift out of sync.
-  const choosingActive =
-    phase === 'choosing' || (phase === 'recording' && preRecordPhase === 'choosing');
+  // Chips show whenever we're in the choosing phase. (Choosing no longer
+  // auto-records, so there's no "recording but was choosing" case to cover.)
+  const choosingActive = phase === 'choosing';
 
   useEffect(() => {
     let cancelled = false;
@@ -181,27 +175,7 @@ export default function Conversation() {
         const worthProcessing =
           process && uri !== null && heardSpeech && duration >= MIN_UTTERANCE_MS;
         if (worthProcessing) {
-          if (choosingActive) {
-            // Give the user a chance to SAY what's next (in Spanish or
-            // English) instead of tapping a chip — same options, spoken.
-            // Transcribed once (not twice) to keep latency down. ASSUMED,
-            // NOT VERIFIED: the 'en' hint still reads short Spanish command
-            // words like "progreso" correctly. If on-device testing shows
-            // commands not firing (falls through to a new phrase instead),
-            // flip this to 'es' — the commands are Spanish words, so 'es'
-            // is the more likely-correct single hint if 'en' mangles them.
-            const heardText = await transcribe(uri, 'en');
-            const command = recognizeCommand(heardText);
-            if (command?.kind === 'progress') {
-              setPendingProgress(true);
-            } else if (command) {
-              await chooseNext(command);
-            } else if (heardText) {
-              await handleEnglishText(heardText);
-            } else {
-              cancelRecording();
-            }
-          } else if (wasRepeat) {
+          if (wasRepeat) {
             await handleRepeatRecording(uri);
           } else {
             await handleEnglishRecording(uri);
@@ -215,13 +189,10 @@ export default function Conversation() {
     },
     [
       recorder,
-      phase,
-      choosingActive,
+      preRecordPhase,
       currentTarget,
       handleEnglishRecording,
-      handleEnglishText,
       handleRepeatRecording,
-      chooseNext,
       cancelRecording,
     ],
   );
@@ -234,15 +205,16 @@ export default function Conversation() {
   }, [pendingProgress, router]);
 
   // Auto-start listening whenever it's the user's turn (hands-free mode).
-  // "choosing" also listens — talking again is a faster way to continue than
-  // tapping a chip, and the chips remain as an explicit shortcut.
+  // NOTE: the "choosing" phase deliberately does NOT auto-listen — spoken
+  // next-step commands were removed because Whisper kept hallucinating
+  // caption phrases like "¡Continúa al siguiente video!" and the command
+  // layer mistook a phrase containing "continúa" for a command. Chips are
+  // now the only next-step mechanism.
   useEffect(() => {
     if (
       autoListen &&
       micPermission === 'granted' &&
-      (phase === 'awaiting-english' ||
-        phase === 'awaiting-repeat' ||
-        phase === 'choosing')
+      (phase === 'awaiting-english' || phase === 'awaiting-repeat')
     ) {
       const t = setTimeout(() => startListening(), LISTEN_START_DELAY_MS);
       return () => clearTimeout(t);
@@ -298,11 +270,19 @@ export default function Conversation() {
     }
   }, [phase, recorderState, finishListening]);
 
-  const canUseMic =
-    phase === 'awaiting-english' ||
-    phase === 'awaiting-repeat' ||
-    phase === 'choosing';
+  // The mic is not usable during "choosing" — next steps are chips-only now
+  // (spoken commands were removed, see the auto-listen effect note).
+  const canUseMic = phase === 'awaiting-english' || phase === 'awaiting-repeat';
   const isRecording = phase === 'recording';
+
+  // Live 0..1 mic level for the listening animation, so the bars react to
+  // ACTUAL audio (proof it's hearing you), not just a canned loop. Metering
+  // is roughly -60 dB (silence) to -10 dB (loud speech); map that window to
+  // 0..1 and clamp. recorderState updates every 120ms, re-rendering this.
+  const audioLevel =
+    isRecording && typeof recorderState.metering === 'number'
+      ? Math.max(0, Math.min(1, (recorderState.metering + 60) / 50))
+      : 0;
 
   const onMicPress = async () => {
     if (isRecording) {
@@ -423,6 +403,7 @@ export default function Conversation() {
       <MicZone
         phase={phase}
         autoListen={autoListen}
+        audioLevel={audioLevel}
         disabled={!canUseMic && !isRecording}
         onPress={onMicPress}
       />
@@ -637,11 +618,6 @@ function NextChips({
           </AppText>
         </Pressable>
       </View>
-      <AppText variant="caption" color={colors.textSecondary} style={styles.sayHint}>
-        or just say it: <AppText variant="captionItalic" color={colors.spanishText}>"continúa"</AppText> ·{' '}
-        <AppText variant="captionItalic" color={colors.spanishText}>"nuevo tema"</AppText> ·{' '}
-        <AppText variant="captionItalic" color={colors.spanishText}>"progreso"</AppText>
-      </AppText>
     </Card>
   );
 }
@@ -656,17 +632,19 @@ const MIC_LABELS: Record<Phase, string> = {
   speaking: 'Speaking',
   'awaiting-repeat': 'Your turn, say it in Spanish',
   scoring: 'Scoring your attempt',
-  choosing: 'Tap a chip, or just talk',
+  choosing: 'Pick what is next',
 };
 
 function MicZone({
   phase,
   autoListen,
+  audioLevel,
   disabled,
   onPress,
 }: {
   phase: Phase;
   autoListen: boolean;
+  audioLevel: number;
   disabled: boolean;
   onPress: () => void;
 }) {
@@ -699,8 +677,7 @@ function MicZone({
   // ListenBars state, per ui-redesign-prompt-v2.md §4: rippling while
   // recording, gentle breathe while auto-listen is armed and waiting for its
   // turn, frozen low while busy, hidden when tap mode is off and idle.
-  const canListenSoon =
-    phase === 'awaiting-english' || phase === 'awaiting-repeat' || phase === 'choosing';
+  const canListenSoon = phase === 'awaiting-english' || phase === 'awaiting-repeat';
   let barsState: ListenBarsState;
   if (isRecording) {
     barsState = 'rippling';
@@ -714,7 +691,7 @@ function MicZone({
 
   return (
     <View style={styles.micArea}>
-      <ListenBars state={barsState} />
+      <ListenBars state={barsState} audioLevel={audioLevel} />
       <AppText variant="caption" color={colors.textSecondary} style={styles.micLabel}>
         {label.toUpperCase()}
       </AppText>
@@ -901,9 +878,6 @@ const styles = StyleSheet.create({
   },
   chipText: {
     fontWeight: '600',
-  },
-  sayHint: {
-    marginTop: 11,
   },
   doneRow: {
     flexDirection: 'row',

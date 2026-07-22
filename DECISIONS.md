@@ -303,3 +303,31 @@ Leander used the app before session tracking existed and wanted that history cre
 **Days are real, minutes are an estimate — stated honestly, not oversold.** A learned-phrase day is genuine, but there's no record of how long those past sessions were, so backfilled days get a flat `BACKFILL_ESTIMATED_MINUTES = 5` (tier 1 on the heatmap). The "Min talked" number and heatmap depth for historical days are estimates, not measurements.
 
 **Trigger**: a one-time run on app launch (`runOneTimeBackfill` in `_layout.tsx`), guarded by a `@queonda/sessions-backfilled-v1` flag. Because the underlying backfill is already idempotent, the flag is just an optimization to skip the work on later launches, not a correctness guard. Wrapped in try/catch so a failure can't block startup. Chose launch-backfill (fits "credit my real past usage") over the earlier dev-seed-button idea (which was the demo framing Leander declined).
+
+## Deferred: smart 3-way intent detection (design constraints, not yet built) (2026-07-22)
+
+Leander wants the app to eventually detect, instantly, which of three things the user needs and route accordingly:
+1. **Teach-me** (current behavior): user says something in English, app teaches the Spanish.
+2. **Quick lookup**: user asks "¿cómo se dice 'laundry'?" and the app just answers.
+3. **Live interpreter**: real-time two-way translation for talking to a Spanish-only person.
+
+**Design constraints to start from when this is scoped (Leander's calls, recorded so the future design begins here):**
+- **Auto-detect ONLY between teach-mode and quick-lookup.** Both are single-turn and low-risk to misroute, so instant detection between them is acceptable.
+- **Live interpreter must be an EXPLICIT mode the user enters via a button — never auto-detected.** Misrouting mid-lesson into interpreter would be jarring, and interpreter needs different session semantics anyway (continuous two-way, no teach/score loop). This supersedes any notion of a fully-automatic 3-way router: it's a 2-way auto-detect plus an explicit third mode.
+- Ties into the already-deferred live-interpreter feature (see the "real-time conversation translation mode" section above); this entry adds the intent-routing framing and the auto-vs-explicit boundary.
+
+Not started. Build nothing for this yet.
+
+## Conversation loop fixes: repeat cue, audio-reactive bars, removed verbal cues (2026-07-22)
+
+Three contained fixes; the smart 3-way intent detection Leander also asked for is deferred (constraints recorded above).
+
+**Removed the spoken/typed verbal next-step commands entirely.** The "or just say it: continúa · nuevo tema · progreso" feature was misfiring. Leander's logs showed the deeper cause: Whisper transcribed "¡Continúa al siguiente video!" (a caption-training-data hallucination) and the app TAUGHT it as a phrase, and separately the command layer risked mistaking a real phrase containing "continúa" for a command. Removed: the choosing-phase auto-listen, the command-recognition branch in `finishListening`, the "or just say it" hint line + its style, and the one-time NEXT_COMMANDS_TEACH spoken lesson (+ its `hasTaughtNextCommands` state). The mic is now disabled during "choosing" — chips are the only next-step mechanism, exactly as asked. `src/lib/nextCommand.ts` and its tests are KEPT (not deleted) as reference for the deferred #4 intent-detection work, where "¿cómo se dice X?" detection is conceptually similar — a deliberate keep, not an oversight.
+
+**Hardened the hallucination filter** (`whisperHallucination.ts`): added `'continua al siguiente video'` as a whole-phrase match, plus a new narrow SUBSTRING matcher for caption-artifact fragments ("siguiente video", "next video", "subtitles by", "amaraorg", etc.) since the "...siguiente video" family gets appended to otherwise-plausible Spanish. Known, accepted false-positive edge: a genuine sentence mentioning "the next video" would also be dropped — judged worth it since the hallucination was actively mis-teaching, and kept as narrow as possible ("next video", not bare "video"). Tests cover both the catch and the "don't swallow a real video sentence" guard. (The existing `heardSpeech` VAD guard that discards clips where no sustained speech was detected was already in place — verified, not newly added.)
+
+**"Now you try" repeat cue.** After a freshly-taught Spanish phrase, the app now speaks a short "Now you try" instead of dropping straight into silence, so the user knows it's their turn. **In ENGLISH, deliberately**: a Spanish cue ("Te toca") back-to-back with the target phrase is confusable — a learner might repeat the CUE instead of the phrase, which is the exact failure the cue was meant to fix. Both `speakSpanish(phrase)` then `speakEnglish("Now you try")` are awaited before the phase flips to `awaiting-repeat`, so the mic opens only after the cue finishes (no barge-in over the app's own audio). Applied to both the initial-teach and extend paths.
+
+**Audio-reactive listening animation** (`ListenBars.tsx`): the "rippling" (recording) state previously ran a canned staggered loop regardless of whether the mic was hearing anything. Now it's driven by the live mic level — `conversation.tsx` normalizes `recorderState.metering` (roughly -60 dB silence to -10 dB loud → 0..1, clamped) and passes it as `audioLevel`; the bars animate to that level (with slight per-bar variation) on each ~120ms metering tick. So the bars visibly track the user's voice, proving the app is actually hearing them. Reduced-motion still short-circuits to the frozen resting state. The rippling branch moved to its own effect (reacting to `audioLevel`) so the state-effect that owns hidden/frozen/breathing doesn't re-run every tick.
+
+**Device-only, unverified from here**: whether "Now you try" reads as clearly-not-the-phrase-to-repeat (if there's any pull to repeat the cue, switch wording), whether the bars feel responsive to voice (the dB→0..1 mapping may need tuning), and that a normal utterance mentioning "video" isn't silently dropped.

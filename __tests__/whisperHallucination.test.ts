@@ -37,4 +37,23 @@ describe('isHallucinatedTranscript', () => {
       isHallucinatedTranscript('Le estoy dando las gracias a mi amiga'),
     ).toBe(false);
   });
+
+  it('catches the "siguiente video" caption-artifact family, even appended to plausible Spanish', () => {
+    // This exact string was taught to Leander as if he'd said it (see logs).
+    expect(isHallucinatedTranscript('¡Continúa al siguiente video!')).toBe(true);
+    expect(isHallucinatedTranscript('Nos vemos en el siguiente video')).toBe(true);
+    expect(isHallucinatedTranscript('See you in the next video, subscribe!')).toBe(true);
+  });
+
+  it('catches subtitle-credit artifacts anywhere in the transcript', () => {
+    expect(
+      isHallucinatedTranscript('Subtítulos realizados por la comunidad de Amara.org'),
+    ).toBe(true);
+  });
+
+  it('does not let the fragment matcher swallow legitimate sentences', () => {
+    // "video" alone is a real word; only the specific caption fragments match.
+    expect(isHallucinatedTranscript('Estoy viendo un video con mi hermano')).toBe(false);
+    expect(isHallucinatedTranscript('Quiero grabar un video')).toBe(false);
+  });
 });
