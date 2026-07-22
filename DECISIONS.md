@@ -219,3 +219,15 @@ Leander pointed out there was no clear way to end a conversation mid-session bey
 ## Deferred: real-time conversation translation mode
 
 Leander asked about adding a live-interpreter mode (translate what someone else is saying in real time and speak back what he wants to say in Spanish, hands-free during an actual conversation with another person) — referencing a demo he saw of a similar ChatGPT/Google feature. Explicitly deferred: this is a fundamentally different feature (new audio architecture, likely a new screen, different UX than the current turn-based teach-and-score loop) rather than a tweak to the existing flow. Not started. Should be scoped as its own dedicated effort when picked back up.
+
+## Cut the spoken coach line: audio, not text (2026-07-22)
+
+Leander pointed out the app was reading the English coach line aloud after the Spanish phrase, even though he already knows what the phrase means, since he's the one who said it in English (or chose to extend it) in the first place. Pure dead time between "here's the phrase" and "your turn."
+
+**Both `handleEnglishText` and `chooseNext` in `useConversation.ts`** now only `speakSpanish(reply.spanish_phrase)` before flipping to `awaiting-repeat` — the `await speakEnglish(reply.coach_line_english)` call is gone from both. The `prefetchAudio` helper (added earlier to warm the coach line's cache while the Spanish phrase played) had no remaining purpose once the coach line was never spoken, so it was removed entirely from both `tts.ts` and its one import site.
+
+**Nothing lost visually**: the Spanish transcript card already renders `englishMeaning` as a subtitle underneath the phrase, so the meaning is still there to read, just not also spoken aloud. On the extend path specifically, the phrase is genuinely new (unlike the initial teach path, where the user already said the English), so the coach line carries slightly more information there, but it's still fully visible on-card. If it ends up feeling too bare on extend turns, that's the first place to revisit.
+
+**Safe by construction, not by luck**: this is a straight removal (no line plays during the window before the user's turn), unlike an earlier same-session attempt to make the coach line play in the background while auto-listen opened the mic, which was reverted because it collided with the mic picking up the app's own voice. Removing a line entirely can't cause that collision, since nothing is playing to collide with.
+
+**Left alone for now, per Leander's own framing ("time or space")**: only the SPOKEN redundancy was cut. The on-screen coach text/meaning still renders. If the visual redundancy should go too, that's a separate, easily reversible follow-up.
