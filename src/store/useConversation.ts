@@ -66,11 +66,13 @@ interface ConversationState {
 let entryId = 0;
 const nextId = () => `entry-${++entryId}`;
 
-// Was '¿Qué onda?' — a real, natural greeting on its own, but also the
-// spoken form of the app's old name, so it's the first thing every demo
-// hears. Swapped for a neutral opener now that the app is Pronto.
-const GREETING_ES = '¿Qué más, pues?';
-const GREETING_EN = 'What are you doing right now?';
+// A warm paisa opener ("what's up") plus the actual prompt ("what are you
+// doing"). Teaching two useful things at the start, and the ES/EN pair now
+// matches line-for-line (the old single "¿Qué más, pues?" didn't translate to
+// "What are you doing right now?"). "¿Qué estás haciendo?" also echoes the
+// Home screen prompt, so it's a phrase the app leans on.
+const GREETING_ES = '¿Qué más, pues? ¿Qué estás haciendo?';
+const GREETING_EN = "What's up? What are you doing right now?";
 const NEW_TOPIC_ES = '¡Muy bien! ¿Qué más?';
 const NEW_TOPIC_EN = "What else are you up to?";
 // Short "your turn" nudge spoken right after a freshly-taught Spanish phrase,
