@@ -9,7 +9,7 @@ import {PrimaryButton} from '../src/components/PrimaryButton';
 import {ScoreRing} from '../src/components/ScoreRing';
 import {ScreenHeader} from '../src/components/ScreenHeader';
 import {LearnedPhrase, loadPhrases, removePhrase} from '../src/lib/phraseStore';
-import {speakSpanish} from '../src/services/tts';
+import {speakSpanish, stopSpeaking} from '../src/services/tts';
 import {colors} from '../src/theme';
 
 /**
@@ -30,18 +30,19 @@ export default function Phrases() {
     });
   }, []);
 
-  const play = useCallback(
-    async (phrase: LearnedPhrase, slow: boolean) => {
-      if (playing) return;
-      setPlaying(phrase.spanish);
-      try {
-        await speakSpanish(phrase.spanish, slow);
-      } finally {
-        setPlaying(null);
-      }
-    },
-    [playing],
-  );
+  const play = useCallback(async (phrase: LearnedPhrase, slow: boolean) => {
+    // A new tap interrupts whatever's currently playing instead of silently
+    // no-opping — with only one shared `playing` slot across every row,
+    // tapping a second phrase while the first was still mid-fetch used to
+    // just do nothing, which read as "the button doesn't always work."
+    stopSpeaking();
+    setPlaying(phrase.spanish);
+    try {
+      await speakSpanish(phrase.spanish, slow);
+    } finally {
+      setPlaying(null);
+    }
+  }, []);
 
   const remove = useCallback(async (spanish: string) => {
     setPhrases(await removePhrase(spanish));

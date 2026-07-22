@@ -75,3 +75,28 @@ export async function removeWord(word: string): Promise<DictionaryWord[]> {
 export async function clearWords(): Promise<void> {
   await AsyncStorage.removeItem(STORAGE_KEY);
 }
+
+export interface WordGroup {
+  letter: string;
+  words: DictionaryWord[];
+}
+
+/**
+ * Group words alphabetically by their (accent-insensitive) first letter, so
+ * a growing dictionary reads as a scannable A-Z list instead of an
+ * unordered wall of chips.
+ */
+export function groupWordsAlphabetically(words: DictionaryWord[]): WordGroup[] {
+  const sorted = [...words].sort((a, b) => normalize(a.word).localeCompare(normalize(b.word)));
+  const groups: WordGroup[] = [];
+  for (const word of sorted) {
+    const letter = (normalize(word.word)[0] ?? '#').toUpperCase();
+    const lastGroup = groups[groups.length - 1];
+    if (lastGroup?.letter === letter) {
+      lastGroup.words.push(word);
+    } else {
+      groups.push({letter, words: [word]});
+    }
+  }
+  return groups;
+}

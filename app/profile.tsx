@@ -9,8 +9,8 @@ import {PrimaryButton} from '../src/components/PrimaryButton';
 import {ScoreRing, scoreColorFor} from '../src/components/ScoreRing';
 import {ScreenHeader} from '../src/components/ScreenHeader';
 import {LearnedPhrase, loadPhrases} from '../src/lib/phraseStore';
-import {DictionaryWord, loadWords} from '../src/lib/wordStore';
-import {speakSpanish} from '../src/services/tts';
+import {DictionaryWord, groupWordsAlphabetically, loadWords} from '../src/lib/wordStore';
+import {speakSpanish, stopSpeaking} from '../src/services/tts';
 import {colors} from '../src/theme';
 
 const WEAK_SCORE_THRESHOLD = 80;
@@ -37,18 +37,17 @@ export default function Profile() {
     }, []),
   );
 
-  const play = useCallback(
-    async (spanish: string) => {
-      if (playing) return;
-      setPlaying(spanish);
-      try {
-        await speakSpanish(spanish);
-      } finally {
-        setPlaying(null);
-      }
-    },
-    [playing],
-  );
+  const play = useCallback(async (spanish: string) => {
+    // A new tap interrupts whatever's currently playing instead of silently
+    // no-opping — see the same fix in app/phrases.tsx for why.
+    stopSpeaking();
+    setPlaying(spanish);
+    try {
+      await speakSpanish(spanish);
+    } finally {
+      setPlaying(null);
+    }
+  }, []);
 
   const needsPractice = [...phrases]
     .filter((p) => p.bestScore < WEAK_SCORE_THRESHOLD)
@@ -59,7 +58,7 @@ export default function Profile() {
       ? null
       : Math.round(phrases.reduce((sum, p) => sum + p.bestScore, 0) / phrases.length);
 
-  const sortedWords = [...words].sort((a, b) => b.timesSeen - a.timesSeen);
+  const wordGroups = groupWordsAlphabetically(words);
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -110,18 +109,25 @@ export default function Profile() {
           </Section>
         )}
 
-        {sortedWords.length > 0 && (
+        {words.length > 0 && (
           <Section title="My dictionary" accent={colors.sunshine}>
-            <View style={styles.wordGrid}>
-              {sortedWords.map((w) => (
-                <WordChip
-                  key={w.word.toLowerCase()}
-                  word={w}
-                  isPlaying={playing === w.word}
-                  onPlay={() => play(w.word)}
-                />
-              ))}
-            </View>
+            {wordGroups.map((group) => (
+              <View key={group.letter} style={styles.letterGroup}>
+                <AppText variant="caption" color={colors.textSecondary} style={styles.letterHeader}>
+                  {group.letter}
+                </AppText>
+                <View style={styles.wordGrid}>
+                  {group.words.map((w) => (
+                    <WordChip
+                      key={w.word.toLowerCase()}
+                      word={w}
+                      isPlaying={playing === w.word}
+                      onPlay={() => play(w.word)}
+                    />
+                  ))}
+                </View>
+              </View>
+            ))}
           </Section>
         )}
 
@@ -315,6 +321,15 @@ const styles = StyleSheet.create({
   },
   playHint: {
     fontSize: 15,
+  },
+  letterGroup: {
+    gap: 6,
+    marginBottom: 10,
+  },
+  letterHeader: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   wordGrid: {
     flexDirection: 'row',

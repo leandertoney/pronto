@@ -2,6 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
   clearWords,
+  DictionaryWord,
+  groupWordsAlphabetically,
   loadWords,
   recordWords,
   removeWord,
@@ -82,5 +84,44 @@ describe('wordStore', () => {
     await recordWords([{word: 'Hola', meaning: 'hello'}], 1000);
     await clearWords();
     expect(await loadWords()).toEqual([]);
+  });
+});
+
+function word(w: string, overrides: Partial<DictionaryWord> = {}): DictionaryWord {
+  return {word: w, meaning: '', timesSeen: 1, firstSeenAt: 0, ...overrides};
+}
+
+describe('groupWordsAlphabetically', () => {
+  it('returns an empty list for no words', () => {
+    expect(groupWordsAlphabetically([])).toEqual([]);
+  });
+
+  it('groups words under their first letter, sorted alphabetically', () => {
+    const groups = groupWordsAlphabetically([
+      word('banana'),
+      word('avocado'),
+      word('apple'),
+    ]);
+    expect(groups.map((g) => g.letter)).toEqual(['A', 'B']);
+    expect(groups[0].words.map((w) => w.word)).toEqual(['apple', 'avocado']);
+    expect(groups[1].words.map((w) => w.word)).toEqual(['banana']);
+  });
+
+  it('groups accented words under their unaccented letter', () => {
+    const groups = groupWordsAlphabetically([word('árbol'), word('amigo')]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].letter).toBe('A');
+    expect(groups[0].words.map((w) => w.word)).toEqual(['amigo', 'árbol']);
+  });
+
+  it('treats upper and lower case as the same letter group', () => {
+    const groups = groupWordsAlphabetically([word('Estoy'), word('estar')]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].letter).toBe('E');
+  });
+
+  it('preserves original spelling in the grouped output', () => {
+    const groups = groupWordsAlphabetically([word('Café')]);
+    expect(groups[0].words[0].word).toBe('Café');
   });
 });
