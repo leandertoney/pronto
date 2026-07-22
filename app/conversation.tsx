@@ -79,7 +79,9 @@ export default function Conversation() {
   const handleEnglishRecording = useConversation((s) => s.handleEnglishRecording);
   const handleRepeatRecording = useConversation((s) => s.handleRepeatRecording);
   const chooseNext = useConversation((s) => s.chooseNext);
+  const learnedCount = useConversation((s) => s.learnedCount);
   const [pendingProgress, setPendingProgress] = useState(false);
+  const [savingAck, setSavingAck] = useState(false);
   const reset = useConversation((s) => s.reset);
 
   const listRef = useRef<FlatList<TranscriptEntry>>(null);
@@ -88,6 +90,8 @@ export default function Conversation() {
   const sessionStartRef = useRef(0); // when this conversation screen was entered, for recordSession on the way out
   const vadStateRef = useRef<VadState>(initialVadState); // adaptive VAD state, reset per listen
   const lastMeteringLogRef = useRef(0); // throttles the diagnostic metering log
+  const leavingRef = useRef(false); // true once "I'm finished" is tapped, so the mic doesn't re-arm under the "saved" overlay
+  const doneTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Chips show whenever we're in the choosing phase. (Choosing no longer
   // auto-records, so there's no "recording but was choosing" case to cover.)
   const choosingActive = phase === 'choosing';
@@ -113,6 +117,7 @@ export default function Conversation() {
     })();
     return () => {
       cancelled = true;
+      if (doneTimeoutRef.current) clearTimeout(doneTimeoutRef.current);
       reset();
       // Log this session for "My week", rounded to the nearest minute. A
       // session under 30s (permission denied immediately, or an accidental
@@ -133,7 +138,7 @@ export default function Conversation() {
   }, [transcript.length]);
 
   const startListening = useCallback(async () => {
-    if (busyRef.current) return;
+    if (busyRef.current || leavingRef.current) return;
     busyRef.current = true;
     try {
       await enterRecordingMode();
@@ -293,13 +298,18 @@ export default function Conversation() {
   // An explicit "done" tap, same as a chip choice — stop listening first so
   // the mic doesn't keep processing a half-heard clip, and cut off any
   // in-flight TTS so the app doesn't keep talking over the Home screen
-  // after the user has already left.
+  // after the user has already left. Phrases are already persisted as they're
+  // learned, so this doesn't SAVE anything — it just acknowledges that the
+  // progress is safe before leaving, so the exit doesn't feel like a discard.
   const onDone = useCallback(async () => {
+    if (leavingRef.current) return; // ignore a second tap while already leaving
+    leavingRef.current = true; // stop the mic from re-arming under the overlay
     if (isRecording) {
       await finishListening(false);
     }
     stopSpeaking();
-    router.back();
+    setSavingAck(true);
+    doneTimeoutRef.current = setTimeout(() => router.back(), 900);
   }, [isRecording, finishListening, router]);
 
   if (micPermission === 'denied') {
@@ -386,6 +396,22 @@ export default function Conversation() {
         disabled={!canUseMic && !isRecording}
         onPress={onMicPress}
       />
+
+      {savingAck && (
+        <View style={styles.savedOverlay}>
+          <View style={styles.savedCard}>
+            <Ionicons name="checkmark-circle" size={30} color={colors.turquoise} />
+            <AppText variant="title" style={styles.savedTitle}>
+              Progress saved
+            </AppText>
+            <AppText variant="caption" color={colors.textSecondary}>
+              {learnedCount > 0
+                ? `${learnedCount} ${learnedCount === 1 ? 'phrase is' : 'phrases are'} in My phrases`
+                : 'Everything you learn is kept for you'}
+            </AppText>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -661,7 +687,9 @@ function MicZone({
   if (isRecording) {
     barsState = 'rippling';
   } else if (isBusy) {
-    barsState = 'frozen';
+    // A traveling-wave "thinking" animation while Whisper/Claude run, so the
+    // multi-second wait reads as the app working, not frozen.
+    barsState = 'thinking';
   } else if (autoListen && canListenSoon) {
     barsState = 'breathing';
   } else {
@@ -867,6 +895,23 @@ const styles = StyleSheet.create({
   },
   doneText: {
     letterSpacing: 0.2,
+  },
+  savedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(51,36,28,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  savedCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    paddingVertical: 26,
+    paddingHorizontal: 32,
+    alignItems: 'center',
+    gap: 8,
+  },
+  savedTitle: {
+    fontSize: 18,
   },
   pressed: {
     opacity: 0.7,

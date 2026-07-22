@@ -3,7 +3,7 @@ import {AccessibilityInfo, Animated, StyleSheet, View} from 'react-native';
 
 import {colors} from '../theme';
 
-export type ListenBarsState = 'rippling' | 'breathing' | 'frozen' | 'hidden';
+export type ListenBarsState = 'rippling' | 'breathing' | 'thinking' | 'frozen' | 'hidden';
 
 interface ListenBarsProps {
   state: ListenBarsState;
@@ -72,6 +72,24 @@ export function ListenBars({state, audioLevel = 0}: ListenBarsProps) {
           Animated.sequence([
             Animated.timing(v, {toValue: 0.75, duration: 900, useNativeDriver: true}),
             Animated.timing(v, {toValue: MID_SCALE, duration: 900, useNativeDriver: true}),
+          ]),
+        ),
+      );
+      loops.forEach((l) => l.start());
+      return () => loops.forEach((l) => l.stop());
+    }
+
+    if (state === 'thinking') {
+      // A traveling wave: each bar peaks slightly after the one before it, so
+      // a bump runs left-to-right on repeat. Reads as "working" during the
+      // Whisper/Claude wait, unlike the flat frozen bars.
+      const loops = scales.map((v, i) =>
+        Animated.loop(
+          Animated.sequence([
+            Animated.delay(i * 130),
+            Animated.timing(v, {toValue: 0.95, duration: 260, useNativeDriver: true}),
+            Animated.timing(v, {toValue: MID_SCALE * 0.6, duration: 260, useNativeDriver: true}),
+            Animated.delay((BAR_COUNT - 1 - i) * 130), // keep the loop period equal across bars
           ]),
         ),
       );
