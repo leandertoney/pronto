@@ -231,3 +231,13 @@ Leander pointed out the app was reading the English coach line aloud after the S
 **Safe by construction, not by luck**: this is a straight removal (no line plays during the window before the user's turn), unlike an earlier same-session attempt to make the coach line play in the background while auto-listen opened the mic, which was reverted because it collided with the mic picking up the app's own voice. Removing a line entirely can't cause that collision, since nothing is playing to collide with.
 
 **Left alone for now, per Leander's own framing ("time or space")**: only the SPOKEN redundancy was cut. The on-screen coach text/meaning still renders. If the visual redundancy should go too, that's a separate, easily reversible follow-up.
+
+## Cut the leftover coach paragraph: the "space" half (2026-07-22)
+
+The follow-up predicted above landed same-day: Leander gave a concrete example ("I'm packing my suitcase to go to Medellín") and pointed at a full paragraph rendering underneath the Spanish phrase card, still legible even after the SPOKEN coach line was cut in the commit above. Root cause: the `kind:'coach'` transcript entry (bilingual, full-sentence — English coach line plus its Spanish translation) was still being pushed to `transcript` in both `handleEnglishText` and `chooseNext`, even though it was no longer spoken. Removing the audio didn't remove the paragraph it used to accompany.
+
+**Removed the coach-entry push at both sites** (the post-teach-phrase entry in `handleEnglishText`, the post-extend entry in `chooseNext`). The Spanish phrase card's `englishMeaning` subtitle already carries the same meaning in one line, so nothing is lost, just no longer duplicated as a second full-sentence bilingual paragraph.
+
+**`kind:'coach'` entries are still used elsewhere and were left alone**: the opening greeting (`startSession`), the "what else are you up to" new-topic line (`chooseNext`'s new-topic branch), and the one-time "you can just talk to me" next-commands teaching line (`handleRepeatRecording`). None of those are redundant with something already on screen, so they keep their bilingual coach-entry treatment.
+
+**Still open, deliberately not touched this pass**: the retry/close-tier score feedback (`feedbackFor`, `MOVING_ON_LINE`) renders a similar bilingual sentence pair on the SCORE card ("Let's hear it slowly one more time, then you try." + its Spanish translation), which Leander also flagged as feeling like "another full paragraph." Left alone pending his confirmation of what to cut there specifically, since the score card's word-by-word "why" box is real learning signal (not redundant clutter) and shouldn't be swept up in the same trim by mistake.

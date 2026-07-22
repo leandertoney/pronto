@@ -227,20 +227,14 @@ export const useConversation = create<ConversationState>((set, get) => ({
             text: reply.spanish_phrase,
             englishMeaning: reply.english_meaning,
           },
-          {
-            id: nextId(),
-            kind: 'coach',
-            text: reply.coach_line_english,
-            spanishTranslation: reply.coach_line_spanish || undefined,
-          },
         ],
         phase: 'speaking',
       }));
 
-      // Only the Spanish phrase is spoken. The coach line's meaning is
-      // already obvious (the user just said it themselves in English) and
-      // stays readable on the card's englishMeaning subtitle — speaking it
-      // too was pure dead time between "the phrase" and "your turn."
+      // Only the Spanish phrase is spoken and shown, not the coach line's
+      // full-sentence meaning — the user already knows it (they just said
+      // it themselves in English), and the phrase card's englishMeaning
+      // subtitle already covers it in one line, not a whole second paragraph.
       await speakSpanish(reply.spanish_phrase);
       set({phase: 'awaiting-repeat'});
     } catch (e) {
@@ -397,19 +391,14 @@ export const useConversation = create<ConversationState>((set, get) => ({
             text: reply.spanish_phrase,
             englishMeaning: reply.english_meaning,
           },
-          {
-            id: nextId(),
-            kind: 'coach',
-            text: reply.coach_line_english,
-            spanishTranslation: reply.coach_line_spanish || undefined,
-          },
         ],
         phase: 'speaking',
       }));
 
-      // Only the Spanish phrase is spoken, same as the initial teach path —
-      // the coach line's meaning stays readable on the card's
-      // englishMeaning subtitle instead of also being spoken aloud.
+      // Only the Spanish phrase is spoken and shown, same as the initial
+      // teach path — the extended phrase's meaning stays readable on the
+      // card's englishMeaning subtitle instead of also being a spoken and
+      // written coach paragraph underneath.
       await speakSpanish(reply.spanish_phrase);
       set({phase: 'awaiting-repeat'});
     } catch (e) {
