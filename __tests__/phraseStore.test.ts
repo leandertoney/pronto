@@ -5,6 +5,7 @@ import {
   loadPhrases,
   removePhrase,
   savePhrase,
+  touchPhrase,
 } from '../src/lib/phraseStore';
 
 const PHRASE = {
@@ -12,6 +13,7 @@ const PHRASE = {
   english: "I'm working on my laptop",
   bestScore: 85,
   learnedAt: 1700000000000,
+  lastSaidAt: 1700000000000,
 };
 
 beforeEach(async () => {
@@ -50,9 +52,45 @@ describe('phraseStore', () => {
     expect(loaded[0].bestScore).toBe(97);
   });
 
+  it('bumps lastSaidAt to the new save time on a re-save, even if the score is not an improvement', async () => {
+    await savePhrase(PHRASE);
+    const resavedAt = PHRASE.learnedAt + 1000;
+    await savePhrase({...PHRASE, bestScore: 10, learnedAt: resavedAt, lastSaidAt: resavedAt});
+    const loaded = await loadPhrases();
+    expect(loaded[0].lastSaidAt).toBe(resavedAt);
+    expect(loaded[0].bestScore).toBe(85); // unimproved score still kept
+  });
+
+  describe('touchPhrase', () => {
+    it('updates lastSaidAt without touching score', async () => {
+      await savePhrase(PHRASE);
+      const [updated] = await touchPhrase(PHRASE.spanish, 1800000000000);
+      expect(updated.lastSaidAt).toBe(1800000000000);
+      expect(updated.bestScore).toBe(PHRASE.bestScore);
+    });
+
+    it('is a no-op for a phrase that does not exist', async () => {
+      await savePhrase(PHRASE);
+      const result = await touchPhrase('No existe', 1800000000000);
+      expect(result).toEqual(await loadPhrases());
+    });
+  });
+
   it('survives corrupted storage by returning an empty list', async () => {
     await AsyncStorage.setItem('@queonda/learned-phrases', 'not-json{');
     expect(await loadPhrases()).toEqual([]);
+  });
+
+  it('backfills lastSaidAt from learnedAt for phrases stored before it existed', async () => {
+    // Simulates a real on-device record from before this field was added.
+    await AsyncStorage.setItem(
+      '@queonda/learned-phrases',
+      JSON.stringify([
+        {spanish: 'Hola', english: 'hello', bestScore: 90, learnedAt: 1500},
+      ]),
+    );
+    const loaded = await loadPhrases();
+    expect(loaded[0].lastSaidAt).toBe(1500);
   });
 
   it('removes a single phrase by its Spanish text, leaving others intact', async () => {

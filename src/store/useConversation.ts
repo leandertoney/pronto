@@ -110,7 +110,7 @@ const MOVING_ON_LINE: Bilingual = {
 async function recordReplyWords(reply: TutorReply): Promise<void> {
   if (reply.words.length === 0) return;
   try {
-    await recordWords(reply.words, Date.now());
+    await recordWords(reply.words, Date.now(), reply.spanish_phrase);
   } catch {
     // Dictionary is a nice-to-have; conversation flow must not break on it.
   }
@@ -295,11 +295,13 @@ export const useConversation = create<ConversationState>((set, get) => ({
       if (movingOn) {
         // Learned (or moving on positively after max retries) — persist,
         // celebrate, then let the USER decide what's next (chips in the UI).
+        const savedAt = Date.now();
         await savePhrase({
           spanish: target.spanish,
           english: target.english,
           bestScore: score,
-          learnedAt: Date.now(),
+          learnedAt: savedAt,
+          lastSaidAt: savedAt,
         });
         set((s) => ({learnedCount: s.learnedCount + 1}));
 

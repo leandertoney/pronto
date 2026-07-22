@@ -16,6 +16,8 @@ export interface DictionaryWord {
   meaning: string;
   timesSeen: number;
   firstSeenAt: number;
+  /** Every distinct Spanish phrase this word has appeared in, oldest first — backs the dictionary's "from '...'" provenance line. */
+  sourcePhrases: string[];
 }
 
 export async function loadWords(): Promise<DictionaryWord[]> {
@@ -23,7 +25,13 @@ export async function loadWords(): Promise<DictionaryWord[]> {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as DictionaryWord[]) : [];
+    if (!Array.isArray(parsed)) return [];
+    // Backfill sourcePhrases for words stored before provenance existed —
+    // without this, recordWords' `.includes()` on a legacy word throws.
+    return (parsed as DictionaryWord[]).map((w) => ({
+      ...w,
+      sourcePhrases: w.sourcePhrases ?? [],
+    }));
   } catch {
     return [];
   }
@@ -34,11 +42,13 @@ export async function loadWords(): Promise<DictionaryWord[]> {
  * (matched by normalized word) has its timesSeen incremented and keeps its
  * original spelling + meaning rather than being overwritten — Claude's gloss
  * for a word should be stable across phrases, and the first version is as
- * good as any later one.
+ * good as any later one. `sourcePhrase` is recorded too (deduped, so
+ * repeating the exact same phrase doesn't pad the provenance list).
  */
 export async function recordWords(
   entries: Array<{word: string; meaning: string}>,
   seenAt: number,
+  sourcePhrase: string,
 ): Promise<DictionaryWord[]> {
   const existing = await loadWords();
   const byKey = new Map(existing.map((w) => [normalize(w.word), w]));
@@ -48,13 +58,17 @@ export async function recordWords(
     if (!key) continue; // pure punctuation token
     const current = byKey.get(key);
     if (current) {
-      byKey.set(key, {...current, timesSeen: current.timesSeen + 1});
+      const sourcePhrases = current.sourcePhrases.includes(sourcePhrase)
+        ? current.sourcePhrases
+        : [...current.sourcePhrases, sourcePhrase];
+      byKey.set(key, {...current, timesSeen: current.timesSeen + 1, sourcePhrases});
     } else {
       byKey.set(key, {
         word: entry.word,
         meaning: entry.meaning,
         timesSeen: 1,
         firstSeenAt: seenAt,
+        sourcePhrases: [sourcePhrase],
       });
     }
   }

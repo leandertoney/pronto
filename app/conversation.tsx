@@ -26,6 +26,7 @@ import {ListenBars, ListenBarsState} from '../src/components/ListenBars';
 import {ScoreRing} from '../src/components/ScoreRing';
 import {ScreenHeader} from '../src/components/ScreenHeader';
 import {recognizeCommand} from '../src/lib/nextCommand';
+import {recordSession} from '../src/lib/sessionStore';
 import {speakSpanish, stopSpeaking} from '../src/services/tts';
 import {transcribe} from '../src/services/whisper';
 import {colors} from '../src/theme';
@@ -91,6 +92,7 @@ export default function Conversation() {
   const listRef = useRef<FlatList<TranscriptEntry>>(null);
   const busyRef = useRef(false); // guards start/stop races
   const listenStartRef = useRef(0);
+  const sessionStartRef = useRef(0); // when this conversation screen was entered, for recordSession on the way out
   const speechDetectedRef = useRef(false);
   const silenceSinceRef = useRef<number | null>(null);
   const noiseFloorRef = useRef<number | null>(null); // calibrated per-listen, not a fixed dB constant
@@ -105,6 +107,7 @@ export default function Conversation() {
 
   useEffect(() => {
     let cancelled = false;
+    sessionStartRef.current = Date.now();
     (async () => {
       const granted = await requestMicPermission();
       if (cancelled) return;
@@ -124,6 +127,14 @@ export default function Conversation() {
     return () => {
       cancelled = true;
       reset();
+      // Log this session for "My week", rounded to the nearest minute. A
+      // session under 30s (permission denied immediately, or an accidental
+      // open) rounds to 0 and recordSession no-ops on it, so a stray tap
+      // into the screen and back out doesn't inflate the week view.
+      const minutes = Math.round((Date.now() - sessionStartRef.current) / 60000);
+      recordSession(sessionStartRef.current, minutes).catch(() => {
+        // Momentum tracking is a nice-to-have; must not break navigation.
+      });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
