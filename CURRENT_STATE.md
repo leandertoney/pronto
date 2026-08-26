@@ -1,4 +1,4 @@
-# Qué Onda — Current State
+# Pronto — Current State
 
 Exhaustive, factual snapshot of the codebase as of 2026-07-19, written as the baseline for a UI overhaul. Every claim below is drawn directly from the source files, not from memory of how the app was built. No code was changed to produce this document.
 
@@ -190,7 +190,7 @@ Every one of the 5 kinds now carries a same-content reverse translation as of th
 - Header `anthropic-dangerous-direct-browser-access: true` — this is a client-side API key call, documented in the README as acceptable only for personal testing (a proxy backend is explicitly called out as required before any public release).
 - Called from `getTutorReply(history)`, invoked at 3 sites: `handleEnglishText` (initial teach), `chooseNext`'s extend branch, and indirectly via the retry-on-malformed-JSON path inside `getTutorReply` itself (one retry, appends the invalid raw output + a re-ask instruction to history, then re-parses).
 - Full conversation history is sent every call (Claude is stateless); assistant turns are stored as the **re-serialized parsed JSON**, not the raw model output, so a malformed-then-retried reply never pollutes history.
-- **System prompt** establishes: a warm, casual bilingual persona ("Qué Onda"), the 3-step loop (teach → score → extend), style rules (no red-pen/grading framing, short coach lines, Spanish phrase spoken before the coach line so the coach line must read as a follow-up not an introduction, 4-12 word natural Latin American Spanish phrases), and a strict JSON-only output contract:
+- **System prompt** establishes: a warm, casual bilingual persona ("Pronto"), the 3-step loop (teach → score → extend), style rules (no red-pen/grading framing, short coach lines, Spanish phrase spoken before the coach line so the coach line must read as a follow-up not an introduction, 4-12 word natural Latin American Spanish phrases), and a strict JSON-only output contract:
   ```
   {"spanish_phrase": "...", "english_meaning": "...", "coach_line_english": "...",
    "coach_line_spanish": "...", "user_input_spanish": "...", "is_extension": false,
@@ -332,7 +332,7 @@ export const fonts = {
 
 ## 10. Configuration surface
 
-- **`app.json`**: app name "Qué Onda", slug `que-onda`, scheme `queonda`, portrait-only, light-only `userInterfaceStyle`, `#FFF7EC` background color on both platforms' native splash/adaptive-icon config, iOS mic-usage description, Android `RECORD_AUDIO` permission + `predictiveBackGestureEnabled: false`, `expo-router` + `expo-audio` (with its own mic-permission-string config) + `expo-asset` (auto-added by `npx expo install`, ships a real config plugin) as config plugins.
+- **`app.json`**: app name "Pronto", slug `que-onda`, scheme `queonda`, portrait-only, light-only `userInterfaceStyle`, `#FFF7EC` background color on both platforms' native splash/adaptive-icon config, iOS mic-usage description, Android `RECORD_AUDIO` permission + `predictiveBackGestureEnabled: false`, `expo-router` + `expo-audio` (with its own mic-permission-string config) + `expo-asset` (auto-added by `npx expo install`, ships a real config plugin) as config plugins.
 - **`tsconfig.json`**: extends `expo/tsconfig.base`, `strict: true`. (The unused `@/*` → `./src/*` path alias has been removed — see §11.)
 - **Environment**: two required env vars, `EXPO_PUBLIC_OPENAI_API_KEY` and `EXPO_PUBLIC_ANTHROPIC_API_KEY`, read via `src/services/env.ts` (throws a descriptive error if either is missing). Documented in the README as `EXPO_PUBLIC_*` variables that get bundled directly into client JS — explicitly flagged as personal-testing-only, with a proxy backend called out as required before any public release.
 - **`.expo/devices.json`** exists (local Expo tooling state, not app configuration).
