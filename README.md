@@ -1,8 +1,14 @@
 # Qué Onda 🌊
 
+> **Prototype.** Built end to end in six days. Not on the App Store.
+
 Contextual Spanish learning: the app asks what you're *actually doing right now* and teaches you to say it in Spanish, then keeps extending the phrase one element at a time so every turn reinforces what you already learned.
 
 Built with Expo (SDK 54) + TypeScript + expo-router. Runs entirely in **stock Expo Go** — no dev builds, no native modules.
+
+## Screenshots
+
+_Screenshots coming soon._
 
 ## The loop
 
